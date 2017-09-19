@@ -433,7 +433,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void createImageFolder(){ //create folder to save images
-        cImageFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "FMI_Fotoapp");
+        cImageFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "FMI_Fotoapp");
         if (!cImageFolder.exists()) {
             cImageFolder.mkdirs();
         }
