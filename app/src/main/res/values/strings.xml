@@ -3,4 +3,20 @@
     <string name="settingsButton">Menü</string>
     <string name="takePhotoButton">Foto schießen</string>
     <string name="title_activity_settings">SettingsActivity</string>
+    <string-array name="settingsHeader">
+        <item>Auslöser</item>
+       <!-- <item>Weitere Einstellungen</item> -->
+    </string-array>
+    <string-array name="triggerChilds">
+        <item>Lautstärkewippe</item>
+        <item>Schütteln</item>
+        <item>Doppelklick</item>
+        <item>Spracheingabe</item>
+        <item>Pulssensor</item>
+        <item>Gestenerkennung</item>
+        <item>Mimik</item>
+    </string-array>
+   <!--<string-array name="otherSettingsChilds">
+        <item>Verzögerung</item>
+    </string-array> -->
 </resources>

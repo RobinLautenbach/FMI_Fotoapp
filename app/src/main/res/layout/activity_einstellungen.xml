@@ -1,8 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     tools:context="com.example.robin.fmi_fotoapp.Einstellungen">
 
-</RelativeLayout>
+    <TextView
+        android:id="@+id/settingsHeadline"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:layout_marginLeft="10dp"
+        android:text="Einstellungen"
+        android:textSize="30dp" />
+
+    <ExpandableListView
+        android:id="@+id/settingsListView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false" />
+</LinearLayout>
