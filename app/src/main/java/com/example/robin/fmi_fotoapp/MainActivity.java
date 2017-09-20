@@ -433,7 +433,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void createImageFolder(){ //create folder to save images
-        cImageFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "FMI_Fotoapp");
+        cImageFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "FMI_Fotoapp");
         if (!cImageFolder.exists()) {
             cImageFolder.mkdirs();
         }
@@ -441,8 +441,8 @@ public class MainActivity extends AppCompatActivity {
 
     private File createImageFileName() throws IOException{ //create file name for newly created images
         String timestamp = new SimpleDateFormat("yyyymmdd_HHmmss").format(new Date());
-        String prepend = "IMAGE_" + timestamp + "_";
-        File imageFile = File.createTempFile(prepend, ".jpg", cImageFolder);
+        String prepend = "IMAGE_" + timestamp;
+        File imageFile = new File(cImageFolder + "/" + prepend + ".jpg");
         cImageFileName = imageFile.getAbsolutePath();
         return imageFile;
     }
