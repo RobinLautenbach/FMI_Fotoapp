@@ -26,13 +26,18 @@ public class Einstellungen extends AppCompatActivity {
         HashMap<String,List<String>> childList = new HashMap<String,List<String>>();
         String triggerHeadingItems[] = getResources().getStringArray(R.array.settingsHeader); //get section headers
         String triggers[] = getResources().getStringArray(R.array.triggerChilds); //get section items
+        String other[] = getResources().getStringArray(R.array.otherSettingsChilds);
         for(String title : triggerHeadingItems){
             sectionHeadings.add(title); //add title to setting section list
         }
         for(String title : triggers) {
             triggerList.add(title); //add title to the section child list
         }
+        for(String title : other) {
+            otherHeadings.add(title);
+        }
         childList.put(sectionHeadings.get(0),triggerList); //add first settings section to the map
+        childList.put(sectionHeadings.get(1),otherHeadings); //add second settings section to the map
         final SettingsAdapter adapter = new SettingsAdapter(this, sectionHeadings, childList);
         listView.setAdapter(adapter);
 
