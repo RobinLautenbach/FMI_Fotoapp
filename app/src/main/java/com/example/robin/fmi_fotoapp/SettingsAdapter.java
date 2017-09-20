@@ -23,6 +23,22 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
     private List<String> headerTitles;
     private HashMap<String,List<String>> childTitles;
     private Context ctx;
+    private class MyTag //this tag is set on a switch to identify the purpose
+    {
+        String  title;
+
+        public MyTag()
+        {
+            title = null;
+
+        }
+
+        public MyTag(String title)
+        {
+                this.title = title;
+        }
+
+    }
 
     SettingsAdapter(Context ctx, List<String> headerTitles, HashMap<String,List<String>> childTitles){
         this.ctx = ctx;
@@ -93,17 +109,20 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
         TextView textView = view.findViewById(R.id.settingsLabel);
         textView.setText(title);
         Switch sw = view.findViewById(R.id.settingsSwitch);
+        sw.setTag(new MyTag(title));
         sw.setOnCheckedChangeListener(new Switch.OnCheckedChangeListener(){
 
             @Override
             public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                MyTag swTag = (MyTag) compoundButton.getTag();
+                String swTitle = swTag.title;
                 if(b) //switch is on...
                 {
-                    Toast.makeText(ctx, "switch was turned on!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ctx, swTitle + "switch was turned on!", Toast.LENGTH_SHORT).show();
                 }
                 else //switch is off
                 {
-                    Toast.makeText(ctx, "switch was turned off!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ctx, swTitle + "switch was turned off!", Toast.LENGTH_SHORT).show();
                 }
             }
 
