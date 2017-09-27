@@ -3,6 +3,7 @@ package com.example.robin.fmi_fotoapp;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
@@ -17,6 +18,8 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.media.MediaScannerConnection;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -27,6 +30,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Size;
 import android.util.SparseIntArray;
+import android.view.KeyEvent;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
@@ -53,10 +57,13 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String VOLUME_PREF_KEY = "Lautstärkewippe";
     private static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
     private static final int REQUEST_EXTERNAL_STORAGE_PERMISSION_RESULT = 1;
     private static final int STATE_PREVIEW = 0;
     private static final int STATE_WAIT_LOCK = 1;
+    private String prefsFile;
+    private SharedPreferences prefs;
     private ImageButton takePhotoButton;
     private ImageButton settingsButton;
     private int cCaptureState = STATE_PREVIEW;
@@ -106,6 +113,15 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             }
+            // Tell the media scanner about the new file so that it is
+            // immediately available to the user.
+            MediaScannerConnection.scanFile(getApplicationContext(), new String[] { cImageFileName }, null,
+                    new MediaScannerConnection.OnScanCompletedListener() {
+                        public void onScanCompleted(String path, Uri uri) {
+                            //happy day the image is now available via gallery
+                        }
+                    });
+
         }
     }
 
@@ -199,7 +215,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) { //app started
         super.onCreate(savedInstanceState);
-        Stetho.initializeWithDefaults(this);
+        Stetho.initializeWithDefaults(this); //initialize Stetho debugging tool
+        prefsFile = getResources().getString(R.string.preferenceFile); //get the name of the SharedPreferences file from the string resources
+        prefs = getSharedPreferences(prefsFile, 0); //load SharedPreferences
         setContentView(R.layout.activity_main);
         createImageFolder();
 
@@ -210,8 +228,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onClick(View view) {
-                checkWriteStoragePermission();
-                lockFocus();
+            takePhoto();
             }
         });
 
@@ -480,6 +497,25 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
+    }
+
+    public void takePhoto(){ //use this function to take a photo
+        checkWriteStoragePermission();
+        lockFocus();
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if ((keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)) { //when the volume control pad is pressed
+            //Do something
+            if (prefs.getBoolean(VOLUME_PREF_KEY, false)) {
+                takePhoto();
+            }
+        }
+        if ((keyCode == KeyEvent.KEYCODE_BACK)){ //when the back button is pressed
+            finish(); //move app process to background
+        }
+        return true;
     }
 
 }

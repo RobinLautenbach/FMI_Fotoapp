@@ -25,7 +25,7 @@ import java.util.List;
 
 public class SettingsAdapter extends BaseExpandableListAdapter {
 
-    private static final String PREFERENCES = "FMI_fotoapp_settings"; //name of the SharedPreferences file
+    private String prefsFile; //name of the SharedPreferences file
 
     //2 different child types slide and number
     private static final int CHILD_TYPE_1 = 0;
@@ -100,12 +100,13 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
         }
     }
 
-    SettingsAdapter(Context ctx, List<String> headerTitles, HashMap<String,List<String>> childTitles){
+    SettingsAdapter(Context ctx, List<String> headerTitles, HashMap<String,List<String>> childTitles, String prefsFile){
         this.ctx = ctx;
         this.headerTitles = headerTitles;
         this.childTitles = childTitles;
-        this.prefs = ctx.getSharedPreferences(PREFERENCES, 0);
+        this.prefs = ctx.getSharedPreferences(prefsFile, 0);
         this.editor = prefs.edit();
+        this.prefsFile = prefsFile;
     }
 
     @Override

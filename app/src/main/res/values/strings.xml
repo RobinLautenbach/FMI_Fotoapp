@@ -3,6 +3,7 @@
     <string name="settingsButton">Menü</string>
     <string name="takePhotoButton">Foto schießen</string>
     <string name="title_activity_settings">SettingsActivity</string>
+    <string name="preferenceFile">FMI_fotoapp_settings</string>
     <string-array name="settingsHeader">
         <item>Auslöser</item>
         <item>Weitere Einstellungen</item>

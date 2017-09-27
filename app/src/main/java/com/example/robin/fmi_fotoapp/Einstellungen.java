@@ -14,8 +14,8 @@ import java.util.List;
 
 public class Einstellungen extends AppCompatActivity {
 
-    ExpandableListView listView;
-    SettingsAdapter adapter;
+    private ExpandableListView listView;
+    private SettingsAdapter adapter;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -39,7 +39,8 @@ public class Einstellungen extends AppCompatActivity {
         }
         childList.put(sectionHeadings.get(0),triggerList); //add first settings section to the map
         childList.put(sectionHeadings.get(1),otherHeadings); //add second settings section to the map
-        this.adapter = new SettingsAdapter(this, sectionHeadings, childList);
+        String prefsFile = getResources().getString(R.string.preferenceFile); //name of the SharedPreferences file
+        this.adapter = new SettingsAdapter(this, sectionHeadings, childList, prefsFile);
         listView.setAdapter(adapter);
 
     }
