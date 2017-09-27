@@ -1,7 +1,9 @@
 package com.example.robin.fmi_fotoapp;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Typeface;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
@@ -23,6 +25,8 @@ import java.util.List;
 
 public class SettingsAdapter extends BaseExpandableListAdapter {
 
+    private static final String PREFERENCES = "FMI_fotoapp_settings"; //name of the SharedPreferences file
+
     //2 different child types slide and number
     private static final int CHILD_TYPE_1 = 0;
     private static final int CHILD_TYPE_2 = 1;
@@ -36,6 +40,8 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
     private List<String> headerTitles;
     private HashMap<String,List<String>> childTitles;
     private Context ctx;
+    private SharedPreferences prefs;
+    private SharedPreferences.Editor editor;
 
     private class MyTag //this tag is set on a switch to identify the purpose
     {
@@ -54,10 +60,52 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
 
     }
 
+    private class MyTextWatcher implements TextWatcher{ //keeps track of the number field's input text
+        private EditText nF;
+        private android.os.Handler handler = new android.os.Handler(Looper.getMainLooper());
+        private Runnable runnable;
+
+        private MyTextWatcher(EditText nF){
+            this.nF = nF;
+        }
+
+        @Override
+        public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+            //This method is called to notify you that, within charSequence, the i1 characters beginning at i are about to be replaced by new text with length i2.
+        }
+
+        @Override
+        public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+            //This method is called to notify you that, within charSequence, the i2 characters beginning at i have just replaced old text that had length i1.
+        }
+
+        @Override
+        public void afterTextChanged(final Editable editable) { //This method is called to notify you that, somewhere within editable, the text has been changed.
+            handler.removeCallbacks(runnable);
+            runnable = new Runnable() {
+                @Override
+                public void run() { //is being executed after a 500ms delay
+                    MyTag tag = (MyTag) nF.getTag();
+                    String title = tag.title;
+                    int intValue = 0;
+                    if (isParsable(editable.toString())){ //string can be parsed to integer
+                        intValue = Integer.parseInt(editable.toString());
+                    }
+                    editor.putInt(title, intValue);
+                    editor.apply();
+                }
+            };
+            handler.postDelayed(runnable, 500 /*delay*/);
+
+        }
+    }
+
     SettingsAdapter(Context ctx, List<String> headerTitles, HashMap<String,List<String>> childTitles){
         this.ctx = ctx;
         this.headerTitles = headerTitles;
         this.childTitles = childTitles;
+        this.prefs = ctx.getSharedPreferences(PREFERENCES, 0);
+        this.editor = prefs.edit();
     }
 
     @Override
@@ -138,51 +186,35 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
         textView.setText(title);
 
         switch (childType){
-            case CHILD_TYPE_1:
+            case CHILD_TYPE_1: //child is a switch
                 Switch sw = view.findViewById(R.id.settingsSwitch);
                 sw.setTag(new MyTag(title));
+                boolean swState = prefs.getBoolean(title, false); //get saved value or false if nothing is set
+                sw.setChecked(swState); //set switch state
                 sw.setOnCheckedChangeListener(new Switch.OnCheckedChangeListener(){
 
                     @Override
                     public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
                         MyTag swTag = (MyTag) compoundButton.getTag();
                         String swTitle = swTag.title;
-                        if(b) //switch is on...
-                        {
-                            Toast.makeText(ctx, swTitle + "switch was turned on!", Toast.LENGTH_SHORT).show();
-                        }
-                        else //switch is off
-                        {
-                            Toast.makeText(ctx, swTitle + "switch was turned off!", Toast.LENGTH_SHORT).show();
-                        }
+                        Boolean key = b; //switch state (on | off)
+                        editor.putBoolean(swTitle, key);
+                        editor.apply();
                     }
 
                 });
                 break;
-            case CHILD_TYPE_2:
+            case CHILD_TYPE_2: //child is a number field
                 EditText numberField = view.findViewById(R.id.settingsNumber);
-                numberField.addTextChangedListener(new TextWatcher() {
-                    @Override
-                    public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-                        //This method is called to notify you that, within charSequence, the i1 characters beginning at i are about to be replaced by new text with length i2.
-                    }
-
-                    @Override
-                    public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-                        //This method is called to notify you that, within charSequence, the i2 characters beginning at i have just replaced old text that had length i1.
-                    }
-
-                    @Override
-                    public void afterTextChanged(Editable editable) { //This method is called to notify you that, somewhere within editable, the text has been changed.
-                        Toast.makeText(ctx, "delay is now: " + editable.toString(), Toast.LENGTH_SHORT).show();
-                    }
-                });
+                numberField.setTag(new MyTag(title));
+                int fieldValue = prefs.getInt(title, 0);
+                numberField.setText(Integer.toString(fieldValue) ,TextView.BufferType.EDITABLE);
+                numberField.addTextChangedListener(new MyTextWatcher(numberField));
                 break;
             case CHILD_TYPE_UNDEFINED:
                 Toast.makeText(this.ctx,  "undefined child!", Toast.LENGTH_SHORT).show();
                 break;
         }
-
 
         return view;
     }
@@ -224,5 +256,15 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
     @Override
     public int getGroupTypeCount() {
         return 2; //2 types of groups in the settings menu
+    }
+
+    public static boolean isParsable(String input){ //checks if a String can be parsed to Integer
+        boolean parsable = true;
+        try{
+            Integer.parseInt(input);
+        }catch(NumberFormatException e){
+            parsable = false;
+        }
+        return parsable;
     }
 }

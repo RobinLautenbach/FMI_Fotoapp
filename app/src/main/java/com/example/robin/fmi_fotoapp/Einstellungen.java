@@ -15,6 +15,7 @@ import java.util.List;
 public class Einstellungen extends AppCompatActivity {
 
     ExpandableListView listView;
+    SettingsAdapter adapter;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -38,7 +39,7 @@ public class Einstellungen extends AppCompatActivity {
         }
         childList.put(sectionHeadings.get(0),triggerList); //add first settings section to the map
         childList.put(sectionHeadings.get(1),otherHeadings); //add second settings section to the map
-        final SettingsAdapter adapter = new SettingsAdapter(this, sectionHeadings, childList);
+        this.adapter = new SettingsAdapter(this, sectionHeadings, childList);
         listView.setAdapter(adapter);
 
     }

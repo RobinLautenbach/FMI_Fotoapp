@@ -23,7 +23,6 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
-import android.support.annotation.RequiresApi;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Size;
@@ -33,6 +32,8 @@ import android.view.TextureView;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.Toast;
+
+import com.facebook.stetho.Stetho;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -50,7 +51,6 @@ import java.util.List;
  * Created by Robin
  */
 
-@RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
@@ -199,6 +199,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) { //app started
         super.onCreate(savedInstanceState);
+        Stetho.initializeWithDefaults(this);
         setContentView(R.layout.activity_main);
         createImageFolder();
 
