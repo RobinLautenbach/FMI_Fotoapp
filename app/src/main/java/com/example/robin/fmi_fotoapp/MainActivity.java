@@ -7,6 +7,10 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -27,10 +31,14 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.view.GestureDetectorCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
+import android.view.GestureDetector;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
@@ -38,6 +46,8 @@ import android.widget.ImageButton;
 import android.widget.Toast;
 
 import com.facebook.stetho.Stetho;
+
+import junit.framework.Test;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -55,7 +65,173 @@ import java.util.List;
  * Created by Robin
  */
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements SensorEventListener {
+
+    //Sensoren auslesen (Shake)
+    private SensorManager sensorManager;
+
+    private final float SCHUETTEL_SCHWELLWERT = 3.5f;
+
+    private final int X_ACHSE = 0;
+    private final int Y_ACHSE = 1;
+    private final int Z_ACHSE = 2;
+
+    private boolean neuGestartet = true;
+    private boolean bewegt = false;
+
+    private float xErsteBeschleunigung;
+    private float yErsteBeschleunigung;
+    private float zErsteBeschleunigung;
+
+    private float xLetzteBeschleunigung;
+    private float yLetzteBeschleunigung;
+    private float zLetzteBeschleunigung;
+
+    private boolean geschuettelt = false;
+
+
+
+    //Gesture Detector
+    private GestureDetectorCompat mDetector;
+
+
+
+
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        aktualisiereBeschleunigungswerte(
+                event.values[X_ACHSE],
+                event.values[Y_ACHSE],
+                event.values[Z_ACHSE]
+        );
+
+        bewegt = bewegenErkannt();
+
+        if(bewegt && !geschuettelt) {
+            geschuettelt = true;
+        } else if (bewegt && geschuettelt) {
+            //FOTO MACHEN
+            takePhoto();
+
+
+        } else if (!bewegt && geschuettelt) {
+            geschuettelt = false;
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int i) {
+
+    }
+
+    protected void aktualisiereBeschleunigungswerte(
+            float xAktuelleBeschleunigung,
+            float yAktuelleBeschleunigung,
+            float zAktuelleBeschleunigung) {
+
+        if(neuGestartet){
+            // werte zu beginn auf 0, setzen der tatsächlichen sensordaten
+            xErsteBeschleunigung = xAktuelleBeschleunigung;
+            yErsteBeschleunigung = yAktuelleBeschleunigung;
+            zErsteBeschleunigung = zAktuelleBeschleunigung;
+
+            neuGestartet = false;
+        } else {
+            //ersetzen durch die letzten beschleunigungswerte
+            xErsteBeschleunigung = xLetzteBeschleunigung;
+            yErsteBeschleunigung = yLetzteBeschleunigung;
+            zErsteBeschleunigung = zLetzteBeschleunigung;
+        }
+
+        // aktuelle werte werden zwischengespeichert
+        xLetzteBeschleunigung = xAktuelleBeschleunigung;
+        yLetzteBeschleunigung = yAktuelleBeschleunigung;
+        zLetzteBeschleunigung = zAktuelleBeschleunigung;
+    }
+
+    protected boolean bewegenErkannt() {
+        final float xDifferenz = Math.abs(xErsteBeschleunigung - xLetzteBeschleunigung);
+        final float yDifferenz = Math.abs(yErsteBeschleunigung - yLetzteBeschleunigung);
+        final float zDifferenz = Math.abs(zErsteBeschleunigung - zLetzteBeschleunigung);
+
+        return (
+                xDifferenz > SCHUETTEL_SCHWELLWERT ||
+                        yDifferenz > SCHUETTEL_SCHWELLWERT ||
+                        zDifferenz > SCHUETTEL_SCHWELLWERT
+        );
+    }
+
+
+
+
+
+
+
+    // DOUBLE TAP IMPLEMENTIERUNG
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event){
+        this.mDetector.onTouchEvent(event);
+        return super.onTouchEvent(event);
+    }
+
+    class MyGestureListener extends GestureDetector.SimpleOnGestureListener implements GestureDetector.OnDoubleTapListener {
+        private static final String DEBUG_TAG = "Gestures";
+
+        @Override
+        public boolean onDown(MotionEvent event) {
+            Log.d(DEBUG_TAG,"onDown: " +  "ASDFASFADFSDFAFADFADSF");
+
+            return true;
+        }
+
+        @Override
+        public boolean onDoubleTap(MotionEvent event) {
+            Log.d(DEBUG_TAG,"onDoubleTap: "  + "DOUBLE TAAAAAAAAAAAAAP");
+
+            takePhoto();
+            return true;
+        }
+
+
+        @Override
+        public boolean onFling(MotionEvent event1, MotionEvent event2,
+                               float velocityX, float velocityY) {
+            Log.d(DEBUG_TAG, "onFling: " + event1.toString() + event2.toString());
+            return true;
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     private static final String VOLUME_PREF_KEY = "Lautstärkewippe";
     private static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
@@ -83,6 +259,9 @@ public class MainActivity extends AppCompatActivity {
             cBackgroundHandler.post(new ImageSaver(imageReader.acquireLatestImage())); //save image from background thread
         }
     };
+
+
+
     private class ImageSaver implements Runnable{ //used to save images
 
         private final Image image;
@@ -212,6 +391,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
+
+
+
+
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) { //app started
         super.onCreate(savedInstanceState);
@@ -240,6 +426,15 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+
+        //SensorManager für Shake
+        sensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
+
+        //Gesture Detector
+        mDetector = new GestureDetectorCompat(this, new MyGestureListener());
+
+
+
     }
 
     @Override
@@ -247,6 +442,9 @@ public class MainActivity extends AppCompatActivity {
         closeCamera();
         super.onPause();
         stopBackgroundThread();
+
+        //Eventlistener unregistrieren
+        sensorManager.unregisterListener(this);
     }
 
     @Override
@@ -259,6 +457,13 @@ public class MainActivity extends AppCompatActivity {
         } else {
             cPreview.setSurfaceTextureListener(cSurfaceListener); //set listener for camera preview view
         }
+
+        //Eventlistener Registireren
+        sensorManager.registerListener(
+                (SensorEventListener) this,
+                sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                SensorManager.SENSOR_DELAY_NORMAL
+        );
     }
 
     @Override
