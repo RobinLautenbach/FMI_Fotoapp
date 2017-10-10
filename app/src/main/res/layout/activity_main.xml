@@ -35,4 +35,12 @@
         android:contentDescription="@string/settingsButton"
         app:srcCompat="@mipmap/btn_settings" />
 
+    <ImageButton
+        android:id="@+id/cameraSwitchButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        app:srcCompat="@mipmap/btn_switch_camera" />
+
 </RelativeLayout>

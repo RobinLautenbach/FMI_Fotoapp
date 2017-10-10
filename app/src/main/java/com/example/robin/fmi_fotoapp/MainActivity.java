@@ -33,7 +33,6 @@ import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.GestureDetectorCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.GestureDetector;
@@ -46,8 +45,6 @@ import android.widget.ImageButton;
 import android.widget.Toast;
 
 import com.facebook.stetho.Stetho;
-
-import junit.framework.Test;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -67,181 +64,60 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
-    //Sensoren auslesen (Shake)
-    private SensorManager sensorManager;
+    //preference keys
+    private static final String VOLUME_PREF_KEY = "Lautstärkewippe";
+    private static final String SHAKE_PREF_KEY = "Schütteln";
+    private static final String DOUBLE_TAP_PREF_KEY = "Doppelklick";
+    private static final String SPEECH_PREF_KEY = "Spracheingabe";
+    private static final String PULSE_PREF_KEY = "Pulssensor";
+    private static final String GESTURE_PREF_KEY = "Gestenerkennung";
+    private static final String EXPRESSION_PREF_KEY = "Mimik";
+    private static final String DELAY_PREF_KEY = "Verzögerung";
 
+    //preference values
+    private int delay = 0;
+    private boolean volumeTriggerActivated = false;
+    private boolean shakeTriggerActivated = false;
+    private boolean doubleTapTriggerActivated = false;
+    private boolean speechTriggerActivated = false;
+    private boolean pulseTriggerActivated = false;
+    private boolean gestureTriggerActivated = false;
+    private boolean expressionTriggerActivated = false;
+
+    //related to shake detection
+    private SensorManager sensorManager; //used to read sensors
     private final float SCHUETTEL_SCHWELLWERT = 3.5f;
-
     private final int X_ACHSE = 0;
     private final int Y_ACHSE = 1;
     private final int Z_ACHSE = 2;
-
     private boolean neuGestartet = true;
     private boolean bewegt = false;
-
     private float xErsteBeschleunigung;
     private float yErsteBeschleunigung;
     private float zErsteBeschleunigung;
-
     private float xLetzteBeschleunigung;
     private float yLetzteBeschleunigung;
     private float zLetzteBeschleunigung;
-
     private boolean geschuettelt = false;
 
-
-
-    //Gesture Detector
+    //gesture detector
     private GestureDetectorCompat mDetector;
 
-
-
-
-
-    @Override
-    public void onSensorChanged(SensorEvent event) {
-        aktualisiereBeschleunigungswerte(
-                event.values[X_ACHSE],
-                event.values[Y_ACHSE],
-                event.values[Z_ACHSE]
-        );
-
-        bewegt = bewegenErkannt();
-
-        if(bewegt && !geschuettelt) {
-            geschuettelt = true;
-        } else if (bewegt && geschuettelt) {
-            //FOTO MACHEN
-            takePhoto();
-
-
-        } else if (!bewegt && geschuettelt) {
-            geschuettelt = false;
-        }
-    }
-
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int i) {
-
-    }
-
-    protected void aktualisiereBeschleunigungswerte(
-            float xAktuelleBeschleunigung,
-            float yAktuelleBeschleunigung,
-            float zAktuelleBeschleunigung) {
-
-        if(neuGestartet){
-            // werte zu beginn auf 0, setzen der tatsächlichen sensordaten
-            xErsteBeschleunigung = xAktuelleBeschleunigung;
-            yErsteBeschleunigung = yAktuelleBeschleunigung;
-            zErsteBeschleunigung = zAktuelleBeschleunigung;
-
-            neuGestartet = false;
-        } else {
-            //ersetzen durch die letzten beschleunigungswerte
-            xErsteBeschleunigung = xLetzteBeschleunigung;
-            yErsteBeschleunigung = yLetzteBeschleunigung;
-            zErsteBeschleunigung = zLetzteBeschleunigung;
-        }
-
-        // aktuelle werte werden zwischengespeichert
-        xLetzteBeschleunigung = xAktuelleBeschleunigung;
-        yLetzteBeschleunigung = yAktuelleBeschleunigung;
-        zLetzteBeschleunigung = zAktuelleBeschleunigung;
-    }
-
-    protected boolean bewegenErkannt() {
-        final float xDifferenz = Math.abs(xErsteBeschleunigung - xLetzteBeschleunigung);
-        final float yDifferenz = Math.abs(yErsteBeschleunigung - yLetzteBeschleunigung);
-        final float zDifferenz = Math.abs(zErsteBeschleunigung - zLetzteBeschleunigung);
-
-        return (
-                xDifferenz > SCHUETTEL_SCHWELLWERT ||
-                        yDifferenz > SCHUETTEL_SCHWELLWERT ||
-                        zDifferenz > SCHUETTEL_SCHWELLWERT
-        );
-    }
-
-
-
-
-
-
-
-    // DOUBLE TAP IMPLEMENTIERUNG
-
-    @Override
-    public boolean onTouchEvent(MotionEvent event){
-        this.mDetector.onTouchEvent(event);
-        return super.onTouchEvent(event);
-    }
-
-    class MyGestureListener extends GestureDetector.SimpleOnGestureListener implements GestureDetector.OnDoubleTapListener {
-        private static final String DEBUG_TAG = "Gestures";
-
-        @Override
-        public boolean onDown(MotionEvent event) {
-            Log.d(DEBUG_TAG,"onDown: " +  "ASDFASFADFSDFAFADFADSF");
-
-            return true;
-        }
-
-        @Override
-        public boolean onDoubleTap(MotionEvent event) {
-            Log.d(DEBUG_TAG,"onDoubleTap: "  + "DOUBLE TAAAAAAAAAAAAAP");
-
-            takePhoto();
-            return true;
-        }
-
-
-        @Override
-        public boolean onFling(MotionEvent event1, MotionEvent event2,
-                               float velocityX, float velocityY) {
-            Log.d(DEBUG_TAG, "onFling: " + event1.toString() + event2.toString());
-            return true;
-        }
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    private static final String VOLUME_PREF_KEY = "Lautstärkewippe";
+    //permission related
     private static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
     private static final int REQUEST_EXTERNAL_STORAGE_PERMISSION_RESULT = 1;
-    private static final int STATE_PREVIEW = 0;
-    private static final int STATE_WAIT_LOCK = 1;
+
+    //shared preferences
     private String prefsFile;
     private SharedPreferences prefs;
+
+    //buttons
     private ImageButton takePhotoButton;
     private ImageButton settingsButton;
+    private ImageButton cameraSwitchButton;
+
+    private static final int STATE_PREVIEW = 0;
+    private static final int STATE_WAIT_LOCK = 1;
     private int cCaptureState = STATE_PREVIEW;
     private File cImageFolder;
     private String cImageFileName;
@@ -259,8 +135,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             cBackgroundHandler.post(new ImageSaver(imageReader.acquireLatestImage())); //save image from background thread
         }
     };
-
-
 
     private class ImageSaver implements Runnable{ //used to save images
 
@@ -328,8 +202,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     };
     private CaptureRequest.Builder cCaptureRequestBuilder; //needed to capture a single image from the camera device
+
+    //related to background thread
     private HandlerThread cBackgroundHandlerThread;
     private Handler cBackgroundHandler;
+
     private static SparseIntArray ORIENTATIONS = new SparseIntArray();
 
     static { //orientation list is used to convert the display orientations into a real world orientation percentage
@@ -391,12 +268,114 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     }
 
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        aktualisiereBeschleunigungswerte(
+                event.values[X_ACHSE],
+                event.values[Y_ACHSE],
+                event.values[Z_ACHSE]
+        );
+
+        bewegt = bewegenErkannt();
+
+        if(bewegt && !geschuettelt) {
+            geschuettelt = true;
+        } else if (bewegt && geschuettelt) {
+
+            if (shakeTriggerActivated) { //trigger option activated
+                takePhoto();
+            }
 
 
+        } else if (!bewegt && geschuettelt) {
+            geschuettelt = false;
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int i) {
+
+    }
+
+    protected void aktualisiereBeschleunigungswerte(
+            float xAktuelleBeschleunigung,
+            float yAktuelleBeschleunigung,
+            float zAktuelleBeschleunigung) {
+
+        if(neuGestartet){
+            //values are 0 at the beginning, set sensor data
+            xErsteBeschleunigung = xAktuelleBeschleunigung;
+            yErsteBeschleunigung = yAktuelleBeschleunigung;
+            zErsteBeschleunigung = zAktuelleBeschleunigung;
+
+            neuGestartet = false;
+        } else {
+            //replace with the last acceleration values
+            xErsteBeschleunigung = xLetzteBeschleunigung;
+            yErsteBeschleunigung = yLetzteBeschleunigung;
+            zErsteBeschleunigung = zLetzteBeschleunigung;
+        }
+
+        //cache values
+        xLetzteBeschleunigung = xAktuelleBeschleunigung;
+        yLetzteBeschleunigung = yAktuelleBeschleunigung;
+        zLetzteBeschleunigung = zAktuelleBeschleunigung;
+    }
+
+    protected boolean bewegenErkannt() {
+        final float xDifferenz = Math.abs(xErsteBeschleunigung - xLetzteBeschleunigung);
+        final float yDifferenz = Math.abs(yErsteBeschleunigung - yLetzteBeschleunigung);
+        final float zDifferenz = Math.abs(zErsteBeschleunigung - zLetzteBeschleunigung);
+
+        return (
+                xDifferenz > SCHUETTEL_SCHWELLWERT ||
+                        yDifferenz > SCHUETTEL_SCHWELLWERT ||
+                        zDifferenz > SCHUETTEL_SCHWELLWERT
+        );
+    }
+
+    //double tap implementation
+    @Override
+    public boolean onTouchEvent(MotionEvent event){
+        this.mDetector.onTouchEvent(event);
+        return super.onTouchEvent(event);
+    }
+
+    class MyGestureListener extends GestureDetector.SimpleOnGestureListener implements GestureDetector.OnDoubleTapListener {
+        private static final String DEBUG_TAG = "Gestures";
+
+        @Override
+        public boolean onDown(MotionEvent event) {
+            return true;
+        }
+
+        @Override
+        public boolean onDoubleTap(MotionEvent event) {
+            if (doubleTapTriggerActivated) { //trigger option activated?
+                takePhoto();
+            }
+            return true;
+        }
 
 
+        @Override
+        public boolean onFling(MotionEvent event1, MotionEvent event2,
+                               float velocityX, float velocityY) {
+            return true;
+        }
+    }
 
-
+    //function to load preference values from the preference file
+    private void loadPreferences(){
+        volumeTriggerActivated = prefs.getBoolean(VOLUME_PREF_KEY, false);
+        shakeTriggerActivated = prefs.getBoolean(SHAKE_PREF_KEY, false);
+        doubleTapTriggerActivated = prefs.getBoolean(DOUBLE_TAP_PREF_KEY, false);
+        speechTriggerActivated = prefs.getBoolean(SPEECH_PREF_KEY, false);
+        pulseTriggerActivated = prefs.getBoolean(PULSE_PREF_KEY, false);
+        gestureTriggerActivated = prefs.getBoolean(GESTURE_PREF_KEY, false);
+        expressionTriggerActivated = prefs.getBoolean(EXPRESSION_PREF_KEY, false);
+        delay = prefs.getInt(DELAY_PREF_KEY, 0);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) { //app started
@@ -404,12 +383,15 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         Stetho.initializeWithDefaults(this); //initialize Stetho debugging tool
         prefsFile = getResources().getString(R.string.preferenceFile); //get the name of the SharedPreferences file from the string resources
         prefs = getSharedPreferences(prefsFile, 0); //load SharedPreferences
+        loadPreferences(); //load and set preference values
         setContentView(R.layout.activity_main);
         createImageFolder();
 
         cPreview = (TextureView) findViewById(R.id.cameraPreview); //get camera preview view
         takePhotoButton = (ImageButton) findViewById(R.id.takePhotoButton);
         settingsButton = (ImageButton) findViewById(R.id.settingsButton);
+        cameraSwitchButton = (ImageButton) findViewById(R.id.cameraSwitchButton);
+
         takePhotoButton.setOnClickListener(new View.OnClickListener(){
 
             @Override
@@ -426,14 +408,17 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             }
         });
 
+        cameraSwitchButton.setOnClickListener(new View.OnClickListener(){
 
-        //SensorManager für Shake
-        sensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
+            @Override
+            public void onClick(View view) {
+                Toast.makeText(getApplicationContext(), "Kamerawechsel!", Toast.LENGTH_SHORT).show();
+            }
+        });
 
-        //Gesture Detector
-        mDetector = new GestureDetectorCompat(this, new MyGestureListener());
+        sensorManager = (SensorManager)getSystemService(SENSOR_SERVICE); //for shake detection
 
-
+        mDetector = new GestureDetectorCompat(this, new MyGestureListener()); //gesture detector
 
     }
 
@@ -443,14 +428,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onPause();
         stopBackgroundThread();
 
-        //Eventlistener unregistrieren
-        sensorManager.unregisterListener(this);
+        sensorManager.unregisterListener(this); //unregister listener
     }
 
     @Override
     protected void onResume() { // app resumed
         super.onResume();
         startBackgroundThread();
+        loadPreferences(); //load and set preference values
         if (cPreview.isAvailable()) {
             setupCamera(cPreview.getWidth(), cPreview.getHeight());
             connectCamera();
@@ -458,9 +443,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             cPreview.setSurfaceTextureListener(cSurfaceListener); //set listener for camera preview view
         }
 
-        //Eventlistener Registireren
+        //register event listener
         sensorManager.registerListener(
-                (SensorEventListener) this,
+                this,
                 sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
                 SensorManager.SENSOR_DELAY_NORMAL
         );
@@ -693,27 +678,33 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     }
 
-    private void lockFocus(){ //lock focus on what the camera is pointing at
-        cCaptureState = STATE_WAIT_LOCK;
-        cCaptureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START);
-        try {
-            cPreviewCaptureSession.capture(cCaptureRequestBuilder.build(), cPreviewCaptureCallback, cBackgroundHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-
+    private void lockFocus(int delay){ //lock focus on what the camera is pointing at
+        final Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                cCaptureState = STATE_WAIT_LOCK;
+                Toast.makeText(getApplicationContext(),"Fokus gesperrt",Toast.LENGTH_SHORT).show();
+                cCaptureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START);
+                try {
+                    cPreviewCaptureSession.capture(cCaptureRequestBuilder.build(), cPreviewCaptureCallback, cBackgroundHandler);
+                } catch (CameraAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+        }, delay);
     }
 
     public void takePhoto(){ //use this function to take a photo
         checkWriteStoragePermission();
-        lockFocus();
+        lockFocus(delay);
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if ((keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)) { //when the volume control pad is pressed
             //Do something
-            if (prefs.getBoolean(VOLUME_PREF_KEY, false)) {
+            if (volumeTriggerActivated) {
                 takePhoto();
             }
         }
