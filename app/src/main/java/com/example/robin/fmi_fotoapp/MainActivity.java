@@ -18,6 +18,7 @@ import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
@@ -65,6 +66,10 @@ import java.util.List;
  */
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
+
+    //ids for front and rear camera
+    public static final String CAMERA_FRONT = "1";
+    public static final String CAMERA_BACK = "0";
 
     //preference keys
     private static final String VOLUME_PREF_KEY = "Lautstärkewippe";
@@ -118,15 +123,20 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private ImageButton settingsButton;
     private ImageButton cameraSwitchButton;
 
-    private boolean isRearCamera = true; //rear camera is used as default
+    private boolean mFlashSupported = false;
+    private boolean cAutoFocusSupported = false; //camera supports autofocus?
+
+    //camera states
     private static final int STATE_PREVIEW = 0;
     private static final int STATE_WAIT_LOCK = 1;
+    //
+
     private int cCaptureState = STATE_PREVIEW;
     private File cImageFolder;
     private String cImageFileName;
     private TextureView cPreview;
     private CameraDevice cDevice;
-    private String cId; //camera id
+    private String cId = CAMERA_BACK; //camera id (rear camera is default)
     private Size cPreviewSize; // camera preview size
     private int cTotalRotation;
     private Size cImageSize;
@@ -191,7 +201,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 case STATE_WAIT_LOCK:
                     cCaptureState = STATE_PREVIEW;
                     Integer afState = captureResult.get(CaptureResult.CONTROL_AF_STATE);
-                    if(afState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED || afState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED){
+                    if(afState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED || afState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED || afState == CaptureResult.CONTROL_AF_STATE_INACTIVE){
                         startCaptureRequest();
                     }
                     break;
@@ -416,8 +426,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             @Override
             public void onClick(View view) {
-                //Toast.makeText(getApplicationContext(), "Kamerawechsel!", Toast.LENGTH_SHORT).show();
-                //switchCamera();
+                switchCamera();
             }
         });
 
@@ -429,9 +438,16 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     public void switchCamera(){ //switch between front and rear camera
         closeCamera();
-        setupCamera(cPreview.getWidth(), cPreview.getHeight());
-        transformImage(cPreview.getWidth(), cPreview.getHeight());
-        connectCamera();
+        if(cPreview != null && cPreview.isAvailable()) {
+            if (cId == CAMERA_BACK){
+                cId = CAMERA_FRONT;
+            }else if (cId == CAMERA_FRONT){
+                cId = CAMERA_BACK;
+            }
+            setupCamera(cPreview.getWidth(), cPreview.getHeight());
+            transformImage(cPreview.getWidth(), cPreview.getHeight());
+            connectCamera();
+        }
     }
 
     private void transformImage(int width, int height){ //transform image when the camera is rotated
@@ -522,31 +538,40 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private void setupCamera(int width, int height) { //setup the camera
         CameraManager cManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
-            for (String mcId : cManager.getCameraIdList()) { //get list of device's camera ids
-                CameraCharacteristics cCharacteristics = cManager.getCameraCharacteristics(mcId);
-                if (cCharacteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT) { //front camera?
-                    continue;
-                }
-                StreamConfigurationMap map = cCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-                //swap between landscape and portrait
-                int deviceOrientation = getWindowManager().getDefaultDisplay().getRotation();
-                int totalRotation = sensorToDeviceRotation(cCharacteristics, deviceOrientation);
-                boolean swapRotation = totalRotation == 90 || totalRotation == 270;
-                int rotatedWidth = width;
-                int rotatedHeight = height;
-                if (swapRotation) {
-                    rotatedWidth = height;
-                    rotatedHeight = width;
-                }
-                cTotalRotation = totalRotation;
-                //***
-                cPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), rotatedWidth, rotatedHeight);
-                cImageSize = chooseOptimalSize(map.getOutputSizes(ImageFormat.JPEG), rotatedWidth, rotatedHeight);
-                cImageReader = ImageReader.newInstance(cImageSize.getWidth(), cImageSize.getHeight(), ImageFormat.JPEG, 2);
-                cImageReader.setOnImageAvailableListener(cOnImageAvailableListener, cBackgroundHandler);
-                cId = mcId;
-                return;
+            if(cManager.getCameraIdList().length == 1){ //only one camera was found
+               cId = cManager.getCameraIdList()[0];
             }
+            CameraCharacteristics cCharacteristics = cManager.getCameraCharacteristics(cId);
+
+            //check for autofocus support
+            int[] afAvailableModes = cCharacteristics.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
+
+            cAutoFocusSupported = !(afAvailableModes.length == 0 || (afAvailableModes.length == 1
+                    && afAvailableModes[0] == CameraMetadata.CONTROL_AF_MODE_OFF));
+            //
+
+            // Check if the flash is supported.
+            Boolean available = cCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+            mFlashSupported = available == null ? false : available;
+            //
+
+            StreamConfigurationMap map = cCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+            //swap between landscape and portrait
+            int deviceOrientation = getWindowManager().getDefaultDisplay().getRotation();
+            int totalRotation = sensorToDeviceRotation(cCharacteristics, deviceOrientation);
+            boolean swapRotation = totalRotation == 90 || totalRotation == 270;
+            int rotatedWidth = width;
+            int rotatedHeight = height;
+            if (swapRotation) {
+                rotatedWidth = height;
+                rotatedHeight = width;
+            }
+            cTotalRotation = totalRotation;
+            //***
+            cPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), rotatedWidth, rotatedHeight);
+            cImageSize = chooseOptimalSize(map.getOutputSizes(ImageFormat.JPEG), rotatedWidth, rotatedHeight);
+            cImageReader = ImageReader.newInstance(cImageSize.getWidth(), cImageSize.getHeight(), ImageFormat.JPEG, 2);
+            cImageReader.setOnImageAvailableListener(cOnImageAvailableListener, cBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -610,6 +635,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             cCaptureRequestBuilder = cDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
             cCaptureRequestBuilder.addTarget(cImageReader.getSurface());
             cCaptureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, cTotalRotation);
+            setAutoFlash(cCaptureRequestBuilder);
 
             CameraCaptureSession.CaptureCallback captureCallback = new CameraCaptureSession.CaptureCallback(){
 
@@ -716,9 +742,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                cCaptureState = STATE_WAIT_LOCK;
                 Toast.makeText(getApplicationContext(),"Fokus gesperrt",Toast.LENGTH_SHORT).show();
                 cCaptureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START);
+                cCaptureState = STATE_WAIT_LOCK;
                 try {
                     cPreviewCaptureSession.capture(cCaptureRequestBuilder.build(), cPreviewCaptureCallback, cBackgroundHandler);
                 } catch (CameraAccessException e) {
@@ -730,7 +756,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     public void takePhoto(){ //use this function to take a photo
         checkWriteStoragePermission();
-        lockFocus(delay);
+        if(cAutoFocusSupported) {
+            lockFocus(delay);
+        }else{ //camera doesn't support autofocus
+            Toast.makeText(getApplicationContext(), "Autofokus wird nicht unterstützt", Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
@@ -745,6 +775,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             finish(); //move app process to background
         }
         return true;
+    }
+
+    private void setAutoFlash(CaptureRequest.Builder requestBuilder) { //set auto flash
+        if (mFlashSupported) {
+            requestBuilder.set(CaptureRequest.CONTROL_AE_MODE,
+                    CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+        }
     }
 
 }
