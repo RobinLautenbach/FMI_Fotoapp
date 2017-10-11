@@ -3,10 +3,7 @@
     <item android:state_pressed="true">
         <bitmap android:src="@mipmap/btn_take_photo" android:tint="@android:color/holo_blue_dark" />
     </item>
-    <item android:state_focused="true">
-        <bitmap android:src="@mipmap/btn_take_photo" android:tint="@android:color/holo_blue_dark" />
-    </item>
     <item>
         <bitmap android:src="@mipmap/btn_take_photo" android:tint="@android:color/holo_blue_bright" />
     </item>
-</selector>
+</selector> 
