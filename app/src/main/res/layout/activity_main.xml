@@ -18,29 +18,42 @@
 
     <ImageButton
         android:id="@+id/takePhotoButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
         android:contentDescription="@string/takePhotoButton"
-        app:srcCompat="@mipmap/btn_take_photo" />
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:background="@null"
+        app:srcCompat="@drawable/btn_take_photo" />
 
     <ImageButton
         android:id="@+id/settingsButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:padding="20dp"
         android:layout_alignParentEnd="true"
         android:layout_alignParentRight="true"
         android:layout_alignParentTop="true"
         android:contentDescription="@string/settingsButton"
-        app:srcCompat="@mipmap/btn_settings" />
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:background="@null"
+        android:tint="@android:color/holo_blue_bright"
+        app:srcCompat="@drawable/btn_settings" />
 
     <ImageButton
         android:id="@+id/cameraSwitchButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:padding="20dp"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
-        app:srcCompat="@mipmap/btn_switch_camera" />
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:background="@null"
+        android:tint="@android:color/holo_blue_bright"
+        app:srcCompat="@drawable/btn_switch_camera" />
 
 </RelativeLayout>
