@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
+import android.graphics.Matrix;
+import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -116,6 +118,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private ImageButton settingsButton;
     private ImageButton cameraSwitchButton;
 
+    private boolean isRearCamera = true; //rear camera is used as default
     private static final int STATE_PREVIEW = 0;
     private static final int STATE_WAIT_LOCK = 1;
     private int cCaptureState = STATE_PREVIEW;
@@ -241,6 +244,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height) {
             setupCamera(width, height);
+            transformImage(width, height);
             connectCamera();
         }
 
@@ -396,7 +400,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             @Override
             public void onClick(View view) {
-            takePhoto();
+                takePhoto();
             }
         });
 
@@ -412,7 +416,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             @Override
             public void onClick(View view) {
-                Toast.makeText(getApplicationContext(), "Kamerawechsel!", Toast.LENGTH_SHORT).show();
+                //Toast.makeText(getApplicationContext(), "Kamerawechsel!", Toast.LENGTH_SHORT).show();
+                //switchCamera();
             }
         });
 
@@ -422,11 +427,38 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     }
 
+    public void switchCamera(){ //switch between front and rear camera
+        closeCamera();
+        setupCamera(cPreview.getWidth(), cPreview.getHeight());
+        transformImage(cPreview.getWidth(), cPreview.getHeight());
+        connectCamera();
+    }
+
+    private void transformImage(int width, int height){ //transform image when the camera is rotated
+        if(cPreviewSize == null || cPreview == null){
+            return;
+        }
+        Matrix matrix = new Matrix();
+        int rotation = getWindowManager().getDefaultDisplay().getRotation();
+        RectF textureRectF = new RectF(0, 0, width, height);
+        RectF previewRectF = new RectF(0, 0, cPreviewSize.getHeight(), cPreviewSize.getWidth());
+        float centerX = textureRectF.centerX();
+        float centerY = textureRectF.centerY();
+        if(rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270){
+            previewRectF.offset(centerX - previewRectF.centerX(), centerY - previewRectF.centerY());
+            matrix.setRectToRect(textureRectF, previewRectF, Matrix.ScaleToFit.FILL);
+            float scale = Math.max((float)width / cPreviewSize.getWidth(), (float)height / cPreviewSize.getHeight());
+            matrix.postScale(scale, scale, centerX, centerY);
+            matrix.postRotate(90 * (rotation - 2), centerX, centerY);
+        }
+        cPreview.setTransform(matrix);
+    }
+
     @Override
     protected void onPause() { //app paused
         closeCamera();
-        super.onPause();
         stopBackgroundThread();
+        super.onPause();
 
         sensorManager.unregisterListener(this); //unregister listener
     }
@@ -434,10 +466,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     protected void onResume() { // app resumed
         super.onResume();
-        startBackgroundThread();
         loadPreferences(); //load and set preference values
+        startBackgroundThread();
         if (cPreview.isAvailable()) {
             setupCamera(cPreview.getWidth(), cPreview.getHeight());
+            transformImage(cPreview.getWidth(), cPreview.getHeight());
             connectCamera();
         } else {
             cPreview.setSurfaceTextureListener(cSurfaceListener); //set listener for camera preview view

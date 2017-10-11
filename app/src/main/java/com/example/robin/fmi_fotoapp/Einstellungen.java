@@ -19,7 +19,7 @@ public class Einstellungen extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_einstellungen);
+        setContentView(R.layout.activity_settings);
         listView = (ExpandableListView) findViewById(R.id.settingsListView);
         List<String> sectionHeadings = new ArrayList<String>(); //list of setting section headers
         List<String> triggerList = new ArrayList<String>(); //list of camera triggers
