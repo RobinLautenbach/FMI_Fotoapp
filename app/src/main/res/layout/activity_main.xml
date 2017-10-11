@@ -41,7 +41,7 @@
         android:scaleType="fitCenter"
         android:background="@null"
         android:tint="@android:color/holo_blue_bright"
-        app:srcCompat="@mipmap/btn_settings" />
+        app:srcCompat="@drawable/btn_settings" />
 
     <ImageButton
         android:id="@+id/cameraSwitchButton"
@@ -54,6 +54,6 @@
         android:scaleType="fitCenter"
         android:background="@null"
         android:tint="@android:color/holo_blue_bright"
-        app:srcCompat="@mipmap/btn_switch_camera" />
+        app:srcCompat="@drawable/btn_switch_camera" />
 
 </RelativeLayout>
