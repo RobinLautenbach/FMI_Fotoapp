@@ -393,6 +393,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     @Override
     protected void onCreate(Bundle savedInstanceState) { //app started
+        if(savedInstanceState != null){
+            cId = savedInstanceState.getString("cId") == null ? CAMERA_BACK : savedInstanceState.getString("cId");
+        }
         super.onCreate(savedInstanceState);
         Stetho.initializeWithDefaults(this); //initialize Stetho debugging tool
         prefsFile = getResources().getString(R.string.preferenceFile); //get the name of the SharedPreferences file from the string resources
@@ -782,6 +785,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             requestBuilder.set(CaptureRequest.CONTROL_AE_MODE,
                     CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
         }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle bundle) {
+        super.onSaveInstanceState(bundle);
+        bundle.putString("cId", cId);
     }
 
 }
