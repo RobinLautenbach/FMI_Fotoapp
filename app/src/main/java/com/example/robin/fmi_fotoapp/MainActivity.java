@@ -91,6 +91,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private boolean gestureTriggerActivated = false;
     private boolean expressionTriggerActivated = false;
 
+    //related to speech recognation
+    private SpeechRecognizerManager mSpeechRecognizerManager;
+
     //related to shake detection
     private SensorManager sensorManager; //used to read sensors
     private final float SCHUETTEL_SCHWELLWERT = 3.5f;
@@ -436,6 +439,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         sensorManager = (SensorManager)getSystemService(SENSOR_SERVICE); //for shake detection
 
         mDetector = new GestureDetectorCompat(this, new MyGestureListener()); //gesture detector
+
+        mSpeechRecognizerManager = new SpeechRecognizerManager(this); //speech recognation
 
     }
 

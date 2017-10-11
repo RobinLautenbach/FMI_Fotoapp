@@ -6,4 +6,4 @@
     <item>
         <bitmap android:src="@mipmap/btn_take_photo" android:tint="@android:color/holo_blue_bright" />
     </item>
-</selector> 
+</selector>
