@@ -116,6 +116,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     //permission related
     private static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
     private static final int REQUEST_EXTERNAL_STORAGE_PERMISSION_RESULT = 1;
+    private static final int REQUEST_RECORD_AUDIO_PERMISSION_RESULT = 2;
+
 
     //shared preferences
     private String prefsFile;
@@ -396,6 +398,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     @Override
     protected void onCreate(Bundle savedInstanceState) { //app started
+        checkRecordAudioPermission();
         if(savedInstanceState != null){
             cId = savedInstanceState.getString("cId") == null ? CAMERA_BACK : savedInstanceState.getString("cId");
         }
@@ -524,7 +527,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     e.printStackTrace();
                 }
             }else{
-                Toast.makeText(getApplicationContext(), "Diese App benötigt Schreibzugriff auf External Storage!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), "Diese App benötigt Schreibzugriff auf External Storage", Toast.LENGTH_SHORT).show();
+            }
+        }
+        if(requestCode == REQUEST_RECORD_AUDIO_PERMISSION_RESULT){
+            if(grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
+                Toast.makeText(getApplicationContext(), "Diese App benötigt Zugriff auf das Mikrofon für die Sprachsteuerung", Toast.LENGTH_LONG).show();
             }
         }
     }
@@ -741,6 +749,23 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 createImageFileName();
             } catch (IOException e) {
                 e.printStackTrace();
+            }
+        }
+    }
+
+    private void checkRecordAudioPermission(){ //check if storage permission is set
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED){
+              /*  try {
+                    createImageFileName();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }*/
+            }else{
+                if(shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)){
+                    Toast.makeText(this, "Diese APP benötigt Zugriff auf das Mikrofon!", Toast.LENGTH_SHORT).show();
+                }
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQUEST_RECORD_AUDIO_PERMISSION_RESULT);
             }
         }
     }
