@@ -27,6 +27,7 @@ import android.media.Image;
 import android.media.ImageReader;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -61,6 +62,12 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 
+import edu.cmu.pocketsphinx.Assets;
+import edu.cmu.pocketsphinx.Hypothesis;
+import edu.cmu.pocketsphinx.SpeechRecognizerSetup;
+
+// Imports for Speech Recognizer
+
 /**
  * Created by Robin
  */
@@ -91,6 +98,16 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private boolean gestureTriggerActivated = false;
     private boolean expressionTriggerActivated = false;
 
+    //related to speech recognation
+    private SpeechRecognizerManager mSpeechRecognizerManager;
+
+    /* Named searches allow to quickly reconfigure the decoder */
+    private static final String KWS_SEARCH = "wakeup";
+    /* Keyword we are looking for to activate menu */
+    private static final String KEYPHRASE = "cheese";
+    private edu.cmu.pocketsphinx.SpeechRecognizer mPocketSphinxRecognizer;
+    private static final String TAG = SpeechRecognizerManager.class.getSimpleName();
+
     //related to shake detection
     private SensorManager sensorManager; //used to read sensors
     private final float SCHUETTEL_SCHWELLWERT = 3.5f;
@@ -113,6 +130,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     //permission related
     private static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
     private static final int REQUEST_EXTERNAL_STORAGE_PERMISSION_RESULT = 1;
+    private static final int REQUEST_RECORD_AUDIO_PERMISSION_RESULT = 2;
+
 
     //shared preferences
     private String prefsFile;
@@ -148,6 +167,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             cBackgroundHandler.post(new ImageSaver(imageReader.acquireLatestImage())); //save image from background thread
         }
     };
+
+
+
+
+
+
 
     private class ImageSaver implements Runnable{ //used to save images
 
@@ -393,6 +418,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     @Override
     protected void onCreate(Bundle savedInstanceState) { //app started
+        checkRecordAudioPermission();
         if(savedInstanceState != null){
             cId = savedInstanceState.getString("cId") == null ? CAMERA_BACK : savedInstanceState.getString("cId");
         }
@@ -436,6 +462,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         sensorManager = (SensorManager)getSystemService(SENSOR_SERVICE); //for shake detection
 
         mDetector = new GestureDetectorCompat(this, new MyGestureListener()); //gesture detector
+
+        mSpeechRecognizerManager = new SpeechRecognizerManager(this); //speech recognation
 
     }
 
@@ -519,7 +547,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     e.printStackTrace();
                 }
             }else{
-                Toast.makeText(getApplicationContext(), "Diese App benötigt Schreibzugriff auf External Storage!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), "Diese App benötigt Schreibzugriff auf External Storage", Toast.LENGTH_SHORT).show();
+            }
+        }
+        if(requestCode == REQUEST_RECORD_AUDIO_PERMISSION_RESULT){
+            if(grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
+                Toast.makeText(getApplicationContext(), "Diese App benötigt Zugriff auf das Mikrofon für die Sprachsteuerung", Toast.LENGTH_LONG).show();
             }
         }
     }
@@ -740,6 +773,23 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     }
 
+    private void checkRecordAudioPermission(){ //check if storage permission is set
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED){
+              /*  try {
+                    createImageFileName();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }*/
+            }else{
+                if(shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)){
+                    Toast.makeText(this, "Diese APP benötigt Zugriff auf das Mikrofon!", Toast.LENGTH_SHORT).show();
+                }
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQUEST_RECORD_AUDIO_PERMISSION_RESULT);
+            }
+        }
+    }
+
     private void lockFocus(int delay){ //lock focus on what the camera is pointing at
         final Handler handler = new Handler();
         handler.postDelayed(new Runnable() {
@@ -792,5 +842,133 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onSaveInstanceState(bundle);
         bundle.putString("cId", cId);
     }
+
+
+
+
+
+
+
+    // Speech Recognizer
+
+    public class SpeechRecognizerManager {
+
+        private Context mContext;
+
+        public SpeechRecognizerManager(Context context) {
+            this.mContext = context;
+
+            initPockerSphinx();
+        }
+
+        private void initPockerSphinx() {
+
+            new AsyncTask<Void, Void, Exception>() {
+                @Override
+                protected Exception doInBackground(Void... params) {
+                    try {
+                        Assets assets = new Assets(mContext);
+
+                        //Performs the synchronization of assets in the application and external storage
+                        File assetDir = assets.syncAssets();
+
+                        //Creates a new speech recognizer builder with default configuration
+                        SpeechRecognizerSetup speechRecognizerSetup = SpeechRecognizerSetup.defaultSetup();
+
+                        speechRecognizerSetup.setAcousticModel(new File(assetDir, "en-us-ptm"));
+                        speechRecognizerSetup.setDictionary(new File(assetDir, "cmudict-en-us.dict"));
+
+                        // To disable logging of raw audio comment out this call (takes a lot of space on the device)
+                        //    speechRecognizerSetup.setRawLogDir(assetDir)
+
+                        // Threshold to tune for keyphrase to balance between false alarms and misses
+                        speechRecognizerSetup.setKeywordThreshold(1e-45f);
+
+                        // Use context-independent phonetic search, context-dependent is too slow for mobile
+                        speechRecognizerSetup.setBoolean("-allphone_ci", true);
+
+                        //Creates a new SpeechRecognizer object based on previous set up.
+                        mPocketSphinxRecognizer = speechRecognizerSetup.getRecognizer();
+
+                        // Add Listener
+                        mPocketSphinxRecognizer.addListener(new PocketSphinxRecognitionListener());
+
+                        // Create keyword-activation search.
+                        mPocketSphinxRecognizer.addKeyphraseSearch(KWS_SEARCH, KEYPHRASE);
+
+
+                    } catch (IOException e) {
+                        return e;
+                    }
+                    return null;
+                }
+
+                @Override
+                protected void onPostExecute(Exception result) {
+                    if (result != null) {
+                        Toast.makeText(mContext, "Failed to init pocketSphinxRecognizer ", Toast.LENGTH_SHORT).show();
+                    } else {
+                        switchSearch(KWS_SEARCH);
+                    }
+                }
+            }.execute();
+
+        }
+
+        private void switchSearch(String searchName) {
+            mPocketSphinxRecognizer.stop();
+
+            if (searchName.equals(KWS_SEARCH))
+                mPocketSphinxRecognizer.startListening(searchName);
+
+        }
+
+        protected class PocketSphinxRecognitionListener implements edu.cmu.pocketsphinx.RecognitionListener {
+
+            @Override
+            public void onBeginningOfSpeech() {
+            }
+
+            /**
+             * In partial result we get quick updates about current hypothesis. In
+             * keyword spotting mode we can react here, in other modes we need to wait
+             * for final result in onResult.
+             */
+            @Override
+            public void onPartialResult(Hypothesis hypothesis) {
+                if (hypothesis == null)
+                    return;
+
+
+                String text = hypothesis.getHypstr();
+                if (text.equals(KEYPHRASE) && speechTriggerActivated) {
+                    Toast.makeText(mContext, "You said:" + text, Toast.LENGTH_SHORT).show();
+                    takePhoto();
+                    switchSearch(KWS_SEARCH);
+                }
+            }
+
+            @Override
+            public void onResult(Hypothesis hypothesis) {
+            }
+
+            @Override
+            public void onEndOfSpeech() {
+            }
+
+            public void onError(Exception error) {
+            }
+
+            @Override
+            public void onTimeout() {
+            }
+        }
+    }
+
+
+
+
+
+
 
 }

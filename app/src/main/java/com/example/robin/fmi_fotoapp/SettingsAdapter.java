@@ -162,7 +162,7 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
 
     @Override
     public View getChildView(int i, int i1, boolean b, View view, ViewGroup viewGroup) {
-        String title = (String) this.getChild(i, i1);
+        final String title = (String) this.getChild(i, i1);
         int childType = getChildType(i, i1);
 
         if (view == null){
@@ -201,6 +201,9 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
                         Boolean key = b; //switch state (on | off)
                         editor.putBoolean(swTitle, key);
                         editor.apply();
+                        if(key && swTitle.equals("Spracheingabe")){
+                            Toast.makeText(ctx, "Sag 'Cheese'", Toast.LENGTH_SHORT).show();
+                        }
                     }
 
                 });
