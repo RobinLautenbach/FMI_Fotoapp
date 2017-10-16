@@ -104,7 +104,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     /* Named searches allow to quickly reconfigure the decoder */
     private static final String KWS_SEARCH = "wakeup";
     /* Keyword we are looking for to activate menu */
-    private static final String KEYPHRASE = "cheese";
+    private static final String KEYPHRASE = "alexa";
     private edu.cmu.pocketsphinx.SpeechRecognizer mPocketSphinxRecognizer;
     private static final String TAG = SpeechRecognizerManager.class.getSimpleName();
 
