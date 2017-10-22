@@ -26,6 +26,7 @@ import java.util.List;
 public class SettingsAdapter extends BaseExpandableListAdapter {
 
     private String prefsFile; //name of the SharedPreferences file
+    private static final String SPEECH_INPUT_KEY = "Spracheingabe";
 
     //2 different child types slide and number
     private static final int CHILD_TYPE_1 = 0;
@@ -201,7 +202,7 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
                         Boolean key = b; //switch state (on | off)
                         editor.putBoolean(swTitle, key);
                         editor.apply();
-                        if(key && swTitle.equals("Spracheingabe")){
+                        if(key && swTitle.equals(SPEECH_INPUT_KEY)){
                             Toast.makeText(ctx, "Sag 'Cheese'", Toast.LENGTH_SHORT).show();
                         }
                     }

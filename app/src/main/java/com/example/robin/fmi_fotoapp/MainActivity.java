@@ -72,7 +72,7 @@ import edu.cmu.pocketsphinx.SpeechRecognizerSetup;
  * Created by Robin
  */
 
-public class MainActivity extends AppCompatActivity implements SensorEventListener {
+public class MainActivity extends AppCompatActivity{
 
     //ids for front and rear camera
     public static final String CAMERA_FRONT = "1";
@@ -131,6 +131,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private static final int REQUEST_CAMERA_PERMISSION_RESULT = 0;
     private static final int REQUEST_EXTERNAL_STORAGE_PERMISSION_RESULT = 1;
     private static final int REQUEST_RECORD_AUDIO_PERMISSION_RESULT = 2;
+    private static final int REQUEST_BODY_SENSORS_PERMISSION_RESULT = 3;
 
 
     //shared preferences
@@ -167,12 +168,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             cBackgroundHandler.post(new ImageSaver(imageReader.acquireLatestImage())); //save image from background thread
         }
     };
-
-
-
-
-
-
 
     private class ImageSaver implements Runnable{ //used to save images
 
@@ -307,71 +302,80 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     }
 
-    @Override
-    public void onSensorChanged(SensorEvent event) {
-        aktualisiereBeschleunigungswerte(
-                event.values[X_ACHSE],
-                event.values[Y_ACHSE],
-                event.values[Z_ACHSE]
-        );
+    private SensorEventListener mySensorListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent sensorEvent) {
+            Sensor sensor = sensorEvent.sensor;
+            if(sensor.getType() == Sensor.TYPE_ACCELEROMETER) { //acceleration sensor detected
+                aktualisiereBeschleunigungswerte(
+                        sensorEvent.values[X_ACHSE],
+                        sensorEvent.values[Y_ACHSE],
+                        sensorEvent.values[Z_ACHSE]
+                );
 
-        bewegt = bewegenErkannt();
+                bewegt = bewegenErkannt();
 
-        if(bewegt && !geschuettelt) {
-            geschuettelt = true;
-        } else if (bewegt && geschuettelt) {
+                if (bewegt && !geschuettelt) {
+                    geschuettelt = true;
+                } else if (bewegt && geschuettelt) {
 
-            if (shakeTriggerActivated) { //trigger option activated
-                takePhoto();
+                    if (shakeTriggerActivated) { //trigger option activated
+                        takePhoto();
+                    }
+
+
+                } else if (!bewegt && geschuettelt) {
+                    geschuettelt = false;
+                }
+            }else if(sensor.getType() == Sensor.TYPE_HEART_RATE){ //heart rate sensor detected
+                if(pulseTriggerActivated) {
+                    takePhoto();
+                }
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int i) {
+
+        }
+
+        private void aktualisiereBeschleunigungswerte(
+                float xAktuelleBeschleunigung,
+                float yAktuelleBeschleunigung,
+                float zAktuelleBeschleunigung) {
+
+            if(neuGestartet){
+                //values are 0 at the beginning, set sensor data
+                xErsteBeschleunigung = xAktuelleBeschleunigung;
+                yErsteBeschleunigung = yAktuelleBeschleunigung;
+                zErsteBeschleunigung = zAktuelleBeschleunigung;
+
+                neuGestartet = false;
+            } else {
+                //replace with the last acceleration values
+                xErsteBeschleunigung = xLetzteBeschleunigung;
+                yErsteBeschleunigung = yLetzteBeschleunigung;
+                zErsteBeschleunigung = zLetzteBeschleunigung;
             }
 
-
-        } else if (!bewegt && geschuettelt) {
-            geschuettelt = false;
-        }
-    }
-
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int i) {
-
-    }
-
-    protected void aktualisiereBeschleunigungswerte(
-            float xAktuelleBeschleunigung,
-            float yAktuelleBeschleunigung,
-            float zAktuelleBeschleunigung) {
-
-        if(neuGestartet){
-            //values are 0 at the beginning, set sensor data
-            xErsteBeschleunigung = xAktuelleBeschleunigung;
-            yErsteBeschleunigung = yAktuelleBeschleunigung;
-            zErsteBeschleunigung = zAktuelleBeschleunigung;
-
-            neuGestartet = false;
-        } else {
-            //replace with the last acceleration values
-            xErsteBeschleunigung = xLetzteBeschleunigung;
-            yErsteBeschleunigung = yLetzteBeschleunigung;
-            zErsteBeschleunigung = zLetzteBeschleunigung;
+            //cache values
+            xLetzteBeschleunigung = xAktuelleBeschleunigung;
+            yLetzteBeschleunigung = yAktuelleBeschleunigung;
+            zLetzteBeschleunigung = zAktuelleBeschleunigung;
         }
 
-        //cache values
-        xLetzteBeschleunigung = xAktuelleBeschleunigung;
-        yLetzteBeschleunigung = yAktuelleBeschleunigung;
-        zLetzteBeschleunigung = zAktuelleBeschleunigung;
-    }
+        private boolean bewegenErkannt() {
+            final float xDifferenz = Math.abs(xErsteBeschleunigung - xLetzteBeschleunigung);
+            final float yDifferenz = Math.abs(yErsteBeschleunigung - yLetzteBeschleunigung);
+            final float zDifferenz = Math.abs(zErsteBeschleunigung - zLetzteBeschleunigung);
 
-    protected boolean bewegenErkannt() {
-        final float xDifferenz = Math.abs(xErsteBeschleunigung - xLetzteBeschleunigung);
-        final float yDifferenz = Math.abs(yErsteBeschleunigung - yLetzteBeschleunigung);
-        final float zDifferenz = Math.abs(zErsteBeschleunigung - zLetzteBeschleunigung);
-
-        return (
-                xDifferenz > SCHUETTEL_SCHWELLWERT ||
-                        yDifferenz > SCHUETTEL_SCHWELLWERT ||
-                        zDifferenz > SCHUETTEL_SCHWELLWERT
-        );
-    }
+            return (
+                    xDifferenz > SCHUETTEL_SCHWELLWERT ||
+                            yDifferenz > SCHUETTEL_SCHWELLWERT ||
+                            zDifferenz > SCHUETTEL_SCHWELLWERT
+            );
+        }
+    };
 
     //double tap implementation
     @Override
@@ -419,6 +423,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     protected void onCreate(Bundle savedInstanceState) { //app started
         checkRecordAudioPermission();
+        checkBodySensorPermission();
         if(savedInstanceState != null){
             cId = savedInstanceState.getString("cId") == null ? CAMERA_BACK : savedInstanceState.getString("cId");
         }
@@ -507,7 +512,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         stopBackgroundThread();
         super.onPause();
 
-        sensorManager.unregisterListener(this); //unregister listener
+        sensorManager.unregisterListener(mySensorListener); //unregister listener
     }
 
     @Override
@@ -525,8 +530,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         //register event listener
         sensorManager.registerListener(
-                this,
+                mySensorListener,
                 sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                SensorManager.SENSOR_DELAY_NORMAL
+        );
+
+        sensorManager.registerListener(
+                mySensorListener,
+                sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE),
                 SensorManager.SENSOR_DELAY_NORMAL
         );
     }
@@ -553,6 +564,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if(requestCode == REQUEST_RECORD_AUDIO_PERMISSION_RESULT){
             if(grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
                 Toast.makeText(getApplicationContext(), "Diese App benötigt Zugriff auf das Mikrofon für die Sprachsteuerung", Toast.LENGTH_LONG).show();
+            }
+        }
+        if(requestCode == REQUEST_BODY_SENSORS_PERMISSION_RESULT){
+            if(grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
+                Toast.makeText(getApplicationContext(), "Diese App benötigt Zugriff auf Body Sensores für den HRM Auslöser", Toast.LENGTH_LONG).show();
             }
         }
     }
@@ -783,9 +799,27 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 }*/
             }else{
                 if(shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)){
-                    Toast.makeText(this, "Diese APP benötigt Zugriff auf das Mikrofon!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Sprachsteuerung benötigt Zugriff auf Mikrofon", Toast.LENGTH_SHORT).show();
                 }
                 requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQUEST_RECORD_AUDIO_PERMISSION_RESULT);
+            }
+        }
+    }
+
+
+    private void checkBodySensorPermission() {
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.BODY_SENSORS) == PackageManager.PERMISSION_GRANTED){
+              /*  try {
+                    createImageFileName();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }*/
+            }else{
+                if(shouldShowRequestPermissionRationale(Manifest.permission.BODY_SENSORS)){
+                    Toast.makeText(this, "HRM Auslöser benötigt Zugriff auf Body Sensors", Toast.LENGTH_SHORT).show();
+                }
+                requestPermissions(new String[]{Manifest.permission.BODY_SENSORS},REQUEST_BODY_SENSORS_PERMISSION_RESULT);
             }
         }
     }
@@ -842,12 +876,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onSaveInstanceState(bundle);
         bundle.putString("cId", cId);
     }
-
-
-
-
-
-
 
     // Speech Recognizer
 
@@ -964,11 +992,5 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             }
         }
     }
-
-
-
-
-
-
 
 }
