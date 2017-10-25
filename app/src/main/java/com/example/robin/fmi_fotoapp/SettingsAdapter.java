@@ -25,9 +25,11 @@ import java.util.List;
 
 public class SettingsAdapter extends BaseExpandableListAdapter {
 
+    private Context ctx;
+
     private String prefsFile; //name of the SharedPreferences file
     private static final String SPEECH_INPUT_KEY = "Spracheingabe";
-
+    private static final String SPEECH_RECOGNITION_KEYPHRASE = "Take a photo";
     //2 different child types slide and number
     private static final int CHILD_TYPE_1 = 0;
     private static final int CHILD_TYPE_2 = 1;
@@ -40,7 +42,6 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
 
     private List<String> headerTitles;
     private HashMap<String,List<String>> childTitles;
-    private Context ctx;
     private SharedPreferences prefs;
     private SharedPreferences.Editor editor;
 
@@ -203,7 +204,7 @@ public class SettingsAdapter extends BaseExpandableListAdapter {
                         editor.putBoolean(swTitle, key);
                         editor.apply();
                         if(key && swTitle.equals(SPEECH_INPUT_KEY)){
-                            Toast.makeText(ctx, "Sag 'Cheese'", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(ctx, "Sag "+SPEECH_RECOGNITION_KEYPHRASE, Toast.LENGTH_SHORT).show();
                         }
                     }
 

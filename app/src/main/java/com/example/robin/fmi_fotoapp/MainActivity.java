@@ -102,27 +102,30 @@ public class MainActivity extends AppCompatActivity{
     private SpeechRecognizerManager mSpeechRecognizerManager;
 
     /* Named searches allow to quickly reconfigure the decoder */
-    private static final String KWS_SEARCH = "wakeup";
+    private String KWS_SEARCH = "wakeup";
     /* Keyword we are looking for to activate menu */
-    private static final String KEYPHRASE = "alexa";
-    private edu.cmu.pocketsphinx.SpeechRecognizer mPocketSphinxRecognizer;
+    private String KEYPHRASE = "take a photo";
+    private static final float KEYWORD_THRESHOLD = 1e-20f;
+    private static final String ALL_PHONE_CI = "-allphone_ci";
+    private static final String EN_US_PTM = "en-us-ptm";
+    private static final String DICTIONARY = "cmudict-en-us.dict";
     private static final String TAG = SpeechRecognizerManager.class.getSimpleName();
 
     //related to shake detection
     private SensorManager sensorManager; //used to read sensors
-    private final float SCHUETTEL_SCHWELLWERT = 3.5f;
-    private final int X_ACHSE = 0;
-    private final int Y_ACHSE = 1;
-    private final int Z_ACHSE = 2;
-    private boolean neuGestartet = true;
-    private boolean bewegt = false;
-    private float xErsteBeschleunigung;
-    private float yErsteBeschleunigung;
-    private float zErsteBeschleunigung;
-    private float xLetzteBeschleunigung;
-    private float yLetzteBeschleunigung;
-    private float zLetzteBeschleunigung;
-    private boolean geschuettelt = false;
+    private final float SHAKE_THRESHOLD = 3.5f;
+    private final int X_AXIS = 0;
+    private final int Y_AXIS = 1;
+    private final int Z_AXIS = 2;
+    private boolean started = true;
+    private boolean moved = false;
+    private float xFirstAcceleration;
+    private float yFirstAcceleration;
+    private float zFirstAcceleration;
+    private float xLastAcceleration;
+    private float yLastAcceleration;
+    private float zLastAcceleration;
+    private boolean shaked = false;
 
     //gesture detector
     private GestureDetectorCompat mDetector;
@@ -132,6 +135,8 @@ public class MainActivity extends AppCompatActivity{
     private static final int REQUEST_EXTERNAL_STORAGE_PERMISSION_RESULT = 1;
     private static final int REQUEST_RECORD_AUDIO_PERMISSION_RESULT = 2;
     private static final int REQUEST_BODY_SENSORS_PERMISSION_RESULT = 3;
+    private static final int REQUEST_MULTIPLES_PERMISSION_RESULT = 4;
+    private boolean microphonePermissionGranted = false;
 
 
     //shared preferences
@@ -219,11 +224,11 @@ public class MainActivity extends AppCompatActivity{
                 case STATE_PREVIEW:
                     break;
                 case STATE_WAIT_LOCK:
-                    cCaptureState = STATE_PREVIEW;
                     Integer afState = captureResult.get(CaptureResult.CONTROL_AF_STATE);
                     if(afState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED || afState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED || afState == CaptureResult.CONTROL_AF_STATE_INACTIVE){
                         startCaptureRequest();
                     }
+                    cCaptureState = STATE_PREVIEW;
                     break;
             }
         }
@@ -239,6 +244,7 @@ public class MainActivity extends AppCompatActivity{
     //related to background thread
     private HandlerThread cBackgroundHandlerThread;
     private Handler cBackgroundHandler;
+    private static final String THREAD_NAME = "FMI_Fotoapp";
 
     private static SparseIntArray ORIENTATIONS = new SparseIntArray();
 
@@ -269,7 +275,8 @@ public class MainActivity extends AppCompatActivity{
             cDevice = null;
         }
     };
-    private TextureView.SurfaceTextureListener cSurfaceListener = new TextureView.SurfaceTextureListener() {
+    private MySurfaceTextureListener cSurfaceListener = new MySurfaceTextureListener();
+    private class MySurfaceTextureListener implements TextureView.SurfaceTextureListener {
 
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height) {
@@ -280,7 +287,7 @@ public class MainActivity extends AppCompatActivity{
 
         @Override
         public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int width, int height) {
-
+            transformImage(width, height);
         }
 
         @Override
@@ -292,7 +299,7 @@ public class MainActivity extends AppCompatActivity{
         public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {
 
         }
-    };
+    }
 
     private static class CompareSizeByArea implements Comparator<Size> { //Helper class to compare different resolutions from the preview
 
@@ -301,31 +308,36 @@ public class MainActivity extends AppCompatActivity{
             return Long.signum((long) lhs.getWidth() * lhs.getHeight() / (long) rhs.getWidth() * rhs.getHeight());
         }
     }
-
-    private SensorEventListener mySensorListener = new SensorEventListener() {
+    private MySensorListener pulseSensorListener = null;
+    private MySensorListener shakeSensorListener = null;
+    private class MySensorListener implements SensorEventListener{
         @Override
         public void onSensorChanged(SensorEvent sensorEvent) {
             Sensor sensor = sensorEvent.sensor;
             if(sensor.getType() == Sensor.TYPE_ACCELEROMETER) { //acceleration sensor detected
-                aktualisiereBeschleunigungswerte(
-                        sensorEvent.values[X_ACHSE],
-                        sensorEvent.values[Y_ACHSE],
-                        sensorEvent.values[Z_ACHSE]
+                updateAccelerationValues(
+                        sensorEvent.values[X_AXIS],
+                        sensorEvent.values[Y_AXIS],
+                        sensorEvent.values[Z_AXIS]
                 );
 
-                bewegt = bewegenErkannt();
+                moved = movementDetected();
 
-                if (bewegt && !geschuettelt) {
-                    geschuettelt = true;
-                } else if (bewegt && geschuettelt) {
+                if (moved && !shaked) {
+                    shaked = true;
+                } else if (moved && shaked) {
 
                     if (shakeTriggerActivated) { //trigger option activated
+                        if(delay < 1500) { //the shake trigger always has a min delay of 1000ms
+                            delay = 1500;
+                        }
                         takePhoto();
+                        delay = prefs.getInt(DELAY_PREF_KEY, 0);
                     }
 
 
-                } else if (!bewegt && geschuettelt) {
-                    geschuettelt = false;
+                } else if (!moved && shaked) {
+                    shaked = false;
                 }
             }else if(sensor.getType() == Sensor.TYPE_HEART_RATE){ //heart rate sensor detected
                 if(pulseTriggerActivated) {
@@ -339,52 +351,54 @@ public class MainActivity extends AppCompatActivity{
 
         }
 
-        private void aktualisiereBeschleunigungswerte(
-                float xAktuelleBeschleunigung,
-                float yAktuelleBeschleunigung,
-                float zAktuelleBeschleunigung) {
+        private void updateAccelerationValues(
+                float xCurrentAcceleration,
+                float yCurrentAcceleration,
+                float zCurrentAcceleration) {
 
-            if(neuGestartet){
+            if(started){
                 //values are 0 at the beginning, set sensor data
-                xErsteBeschleunigung = xAktuelleBeschleunigung;
-                yErsteBeschleunigung = yAktuelleBeschleunigung;
-                zErsteBeschleunigung = zAktuelleBeschleunigung;
+                xFirstAcceleration = xCurrentAcceleration;
+                yFirstAcceleration = yCurrentAcceleration;
+                zFirstAcceleration = zCurrentAcceleration;
 
-                neuGestartet = false;
+                started = false;
             } else {
                 //replace with the last acceleration values
-                xErsteBeschleunigung = xLetzteBeschleunigung;
-                yErsteBeschleunigung = yLetzteBeschleunigung;
-                zErsteBeschleunigung = zLetzteBeschleunigung;
+                xFirstAcceleration = xLastAcceleration;
+                yFirstAcceleration = yLastAcceleration;
+                zFirstAcceleration = zLastAcceleration;
             }
 
             //cache values
-            xLetzteBeschleunigung = xAktuelleBeschleunigung;
-            yLetzteBeschleunigung = yAktuelleBeschleunigung;
-            zLetzteBeschleunigung = zAktuelleBeschleunigung;
+            xLastAcceleration = xCurrentAcceleration;
+            yLastAcceleration = yCurrentAcceleration;
+            zLastAcceleration = zCurrentAcceleration;
         }
 
-        private boolean bewegenErkannt() {
-            final float xDifferenz = Math.abs(xErsteBeschleunigung - xLetzteBeschleunigung);
-            final float yDifferenz = Math.abs(yErsteBeschleunigung - yLetzteBeschleunigung);
-            final float zDifferenz = Math.abs(zErsteBeschleunigung - zLetzteBeschleunigung);
+        private boolean movementDetected() {
+            final float xDifference = Math.abs(xFirstAcceleration - xLastAcceleration);
+            final float yDifference = Math.abs(yFirstAcceleration - yLastAcceleration);
+            final float zDifference = Math.abs(zFirstAcceleration - zLastAcceleration);
 
             return (
-                    xDifferenz > SCHUETTEL_SCHWELLWERT ||
-                            yDifferenz > SCHUETTEL_SCHWELLWERT ||
-                            zDifferenz > SCHUETTEL_SCHWELLWERT
+                    xDifference > SHAKE_THRESHOLD ||
+                            yDifference > SHAKE_THRESHOLD ||
+                            zDifference > SHAKE_THRESHOLD
             );
         }
-    };
+    }
 
     //double tap implementation
     @Override
     public boolean onTouchEvent(MotionEvent event){
-        this.mDetector.onTouchEvent(event);
+        if(mDetector != null) {
+            mDetector.onTouchEvent(event);
+        }
         return super.onTouchEvent(event);
     }
 
-    class MyGestureListener extends GestureDetector.SimpleOnGestureListener implements GestureDetector.OnDoubleTapListener {
+    private class MyGestureListener extends GestureDetector.SimpleOnGestureListener implements GestureDetector.OnDoubleTapListener {
         private static final String DEBUG_TAG = "Gestures";
 
         @Override
@@ -400,7 +414,6 @@ public class MainActivity extends AppCompatActivity{
             return true;
         }
 
-
         @Override
         public boolean onFling(MotionEvent event1, MotionEvent event2,
                                float velocityX, float velocityY) {
@@ -408,6 +421,112 @@ public class MainActivity extends AppCompatActivity{
         }
     }
 
+    // Speech Recognizer
+    private class SpeechRecognizerManager {
+
+        private Context mContext;
+        private edu.cmu.pocketsphinx.SpeechRecognizer mPocketSphinxRecognizer;
+
+        public SpeechRecognizerManager(Context context) {
+            this.mContext = context;
+            initPocketSphinx();
+        }
+
+        private void initPocketSphinx() {
+
+            new AsyncTask<Void, Void, Exception>() {
+                @Override
+                protected Exception doInBackground(Void... params) {
+                    try {
+                        Assets assets = new Assets(mContext);
+
+                        //Performs the synchronization of assets in the application and external storage
+                        File assetDir = assets.syncAssets();
+
+                        //Creates a new speech recognizer builder with default configuration
+                        SpeechRecognizerSetup speechRecognizerSetup = SpeechRecognizerSetup.defaultSetup();
+
+                        speechRecognizerSetup.setAcousticModel(new File(assetDir, EN_US_PTM))
+                                .setDictionary(new File(assetDir, DICTIONARY))
+                                .setKeywordThreshold(KEYWORD_THRESHOLD) // Threshold to tune for keyphrase to balance between false alarms and misses
+                                .setBoolean(ALL_PHONE_CI, true);
+
+                        //Creates a new SpeechRecognizer object based on previous set up.
+                        mPocketSphinxRecognizer = speechRecognizerSetup.getRecognizer();
+
+                        // Add Listener
+                        mPocketSphinxRecognizer.addListener(new PocketSphinxRecognitionListener());
+
+                        // Create keyword-activation search.
+                        mPocketSphinxRecognizer.addKeyphraseSearch(KWS_SEARCH, KEYPHRASE);
+
+
+                    } catch (IOException e) {
+                        return e;
+                    }
+                    return null;
+                }
+
+                @Override
+                protected void onPostExecute(Exception result) {
+                    if (result != null) {
+                        Toast.makeText(mContext, "Failed to init pocketSphinxRecognizer ", Toast.LENGTH_SHORT).show();
+                    } else {
+                        switchSearch(KWS_SEARCH);
+                    }
+                }
+            }.execute();
+
+        }
+
+        private void switchSearch(String searchName) {
+            mPocketSphinxRecognizer.stop();
+
+            if (searchName.equals(KWS_SEARCH)) {
+                mPocketSphinxRecognizer.startListening(searchName);
+            }
+        }
+
+        protected class PocketSphinxRecognitionListener implements edu.cmu.pocketsphinx.RecognitionListener {
+
+            @Override
+            public void onBeginningOfSpeech() {
+            }
+
+            /**
+             * In partial result we get quick updates about current hypothesis. In
+             * keyword spotting mode we can react here, in other modes we need to wait
+             * for final result in onResult.
+             */
+            @Override
+            public void onPartialResult(Hypothesis hypothesis) {
+                if (hypothesis == null) {
+                    return;
+                }
+                String text = hypothesis.getHypstr();
+                if (text.equals(KEYPHRASE) && speechTriggerActivated) {
+                    Toast.makeText(mContext, "You said:" + text, Toast.LENGTH_SHORT).show();
+                    takePhoto();
+                    switchSearch(KWS_SEARCH);
+                }
+            }
+
+            @Override
+            public void onResult(Hypothesis hypothesis) {
+            }
+
+            @Override
+            public void onEndOfSpeech() {
+            }
+
+            public void onError(Exception error) {
+            }
+
+            @Override
+            public void onTimeout() {
+            }
+        }
+    }
     //function to load preference values from the preference file
     private void loadPreferences(){
         volumeTriggerActivated = prefs.getBoolean(VOLUME_PREF_KEY, false);
@@ -422,8 +541,6 @@ public class MainActivity extends AppCompatActivity{
 
     @Override
     protected void onCreate(Bundle savedInstanceState) { //app started
-        checkRecordAudioPermission();
-        checkBodySensorPermission();
         if(savedInstanceState != null){
             cId = savedInstanceState.getString("cId") == null ? CAMERA_BACK : savedInstanceState.getString("cId");
         }
@@ -466,24 +583,16 @@ public class MainActivity extends AppCompatActivity{
 
         sensorManager = (SensorManager)getSystemService(SENSOR_SERVICE); //for shake detection
 
-        mDetector = new GestureDetectorCompat(this, new MyGestureListener()); //gesture detector
-
-        mSpeechRecognizerManager = new SpeechRecognizerManager(this); //speech recognation
-
     }
 
-    public void switchCamera(){ //switch between front and rear camera
+    private void switchCamera(){ //switch between front and rear camera
         closeCamera();
-        if(cPreview != null && cPreview.isAvailable()) {
-            if (cId == CAMERA_BACK){
-                cId = CAMERA_FRONT;
-            }else if (cId == CAMERA_FRONT){
-                cId = CAMERA_BACK;
-            }
-            setupCamera(cPreview.getWidth(), cPreview.getHeight());
-            transformImage(cPreview.getWidth(), cPreview.getHeight());
-            connectCamera();
+        if (cId == CAMERA_BACK){
+            cId = CAMERA_FRONT;
+        }else if (cId == CAMERA_FRONT){
+            cId = CAMERA_BACK;
         }
+        openCamera();
     }
 
     private void transformImage(int width, int height){ //transform image when the camera is rotated
@@ -511,47 +620,101 @@ public class MainActivity extends AppCompatActivity{
         closeCamera();
         stopBackgroundThread();
         super.onPause();
+        if(shakeSensorListener != null){
+            sensorManager.unregisterListener(shakeSensorListener); //unregister listener
+        }
+        if(pulseSensorListener != null){
+            sensorManager.unregisterListener(pulseSensorListener);
+        }
 
-        sensorManager.unregisterListener(mySensorListener); //unregister listener
+    }
+
+    private void openCamera(){
+        setupCamera(cPreview.getWidth(), cPreview.getHeight());
+        transformImage(cPreview.getWidth(), cPreview.getHeight());
+        connectCamera();
     }
 
     @Override
     protected void onResume() { // app resumed
         super.onResume();
-        loadPreferences(); //load and set preference values
         startBackgroundThread();
         if (cPreview.isAvailable()) {
-            setupCamera(cPreview.getWidth(), cPreview.getHeight());
-            transformImage(cPreview.getWidth(), cPreview.getHeight());
-            connectCamera();
+            openCamera();
         } else {
             cPreview.setSurfaceTextureListener(cSurfaceListener); //set listener for camera preview view
         }
 
-        //register event listener
-        sensorManager.registerListener(
-                mySensorListener,
-                sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
-                SensorManager.SENSOR_DELAY_NORMAL
-        );
+        loadPreferences(); //load and set preference values
 
-        sensorManager.registerListener(
-                mySensorListener,
-                sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE),
-                SensorManager.SENSOR_DELAY_NORMAL
-        );
+        //permission handling for pulse and speech
+        if(speechTriggerActivated && !pulseTriggerActivated){
+            checkRecordAudioPermission(); //single permission request
+        }else if(pulseTriggerActivated && !speechTriggerActivated){
+            checkBodySensorPermission();
+        }else if(speechTriggerActivated && pulseTriggerActivated){
+            String[] PERMISSIONS = {Manifest.permission.RECORD_AUDIO, Manifest.permission.BODY_SENSORS};  //multiple permission request
+            if(!hasPermissions(PERMISSIONS)){
+                requestPermissions(PERMISSIONS, REQUEST_MULTIPLES_PERMISSION_RESULT);
+            }
+        }
+        //
+
+        if(doubleTapTriggerActivated){
+            if(mDetector == null) {
+                mDetector = new GestureDetectorCompat(this, new MyGestureListener()); //gesture detector
+            }
+        }else{
+            if(mDetector != null) {
+                mDetector = null;
+            }
+        }
+        if(shakeTriggerActivated){
+            if(shakeSensorListener == null){
+                shakeSensorListener = new MySensorListener();
+                //register event listener
+                sensorManager.registerListener(
+                        shakeSensorListener,
+                        sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                        SensorManager.SENSOR_DELAY_NORMAL
+                );
+            }
+        }else{
+            if(shakeSensorListener != null) {
+                sensorManager.unregisterListener(shakeSensorListener);
+                shakeSensorListener = null;
+            }
+        }
+
+        if(sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE) != null) {
+            if(pulseSensorListener == null) {
+                pulseSensorListener = new MySensorListener();
+                sensorManager.registerListener(
+                        pulseSensorListener,
+                        sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE),
+                        SensorManager.SENSOR_DELAY_NORMAL
+                );
+            }
+        }
+
+        if(microphonePermissionGranted) {
+            if(mSpeechRecognizerManager == null) {
+                mSpeechRecognizerManager = new SpeechRecognizerManager(this); //speech recognition
+            }
+        }
+
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) { //check permission request result
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if(requestCode == REQUEST_CAMERA_PERMISSION_RESULT){
-            if(grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
+            if(grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
                 Toast.makeText(getApplicationContext(), "Diese App benötigt Kamerazugriff", Toast.LENGTH_SHORT).show();
             }
         }
         if(requestCode == REQUEST_EXTERNAL_STORAGE_PERMISSION_RESULT){
-            if(grantResults[0] == PackageManager.PERMISSION_GRANTED){
+            if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
                 try {
                     createImageFileName();
                 } catch (IOException e) {
@@ -562,13 +725,35 @@ public class MainActivity extends AppCompatActivity{
             }
         }
         if(requestCode == REQUEST_RECORD_AUDIO_PERMISSION_RESULT){
-            if(grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
+            if(grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
                 Toast.makeText(getApplicationContext(), "Diese App benötigt Zugriff auf das Mikrofon für die Sprachsteuerung", Toast.LENGTH_LONG).show();
+                microphonePermissionGranted = false;
+            }else{
+                microphonePermissionGranted = true;
             }
         }
         if(requestCode == REQUEST_BODY_SENSORS_PERMISSION_RESULT){
-            if(grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
+            if(grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
                 Toast.makeText(getApplicationContext(), "Diese App benötigt Zugriff auf Body Sensores für den HRM Auslöser", Toast.LENGTH_LONG).show();
+            }
+        }
+        if (requestCode == REQUEST_MULTIPLES_PERMISSION_RESULT){
+            for(String permission : permissions){
+                switch(permission){
+                    case Manifest.permission.RECORD_AUDIO:
+                        if(grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
+                            Toast.makeText(getApplicationContext(), "Diese App benötigt Zugriff auf das Mikrofon für die Sprachsteuerung", Toast.LENGTH_LONG).show();
+                            microphonePermissionGranted = false;
+                        }else{
+                            microphonePermissionGranted = true;
+                        }
+                        break;
+                    case Manifest.permission.BODY_SENSORS:
+                        if(grantResults.length > 0 && grantResults[0] != PackageManager.PERMISSION_GRANTED){ //request was rejected?
+                            Toast.makeText(getApplicationContext(), "Diese App benötigt Zugriff auf Body Sensores für den HRM Auslöser", Toast.LENGTH_LONG).show();
+                        }
+                        break;
+                }
             }
         }
     }
@@ -715,7 +900,7 @@ public class MainActivity extends AppCompatActivity{
     }
 
     private void startBackgroundThread(){
-        cBackgroundHandlerThread = new HandlerThread("FMI_Fotoapp");
+        cBackgroundHandlerThread = new HandlerThread(THREAD_NAME);
         cBackgroundHandlerThread.start();
         cBackgroundHandler = new Handler(cBackgroundHandlerThread.getLooper());
     }
@@ -768,13 +953,7 @@ public class MainActivity extends AppCompatActivity{
 
     private void checkWriteStoragePermission(){ //check if storage permission is set
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
-            if(ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED){
-              /*  try {
-                    createImageFileName();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }*/
-            }else{
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
                 if(shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)){
                     Toast.makeText(this, "Diese APP benötigt Schreibzugriff auf External Storage!", Toast.LENGTH_SHORT).show();
                 }
@@ -789,33 +968,43 @@ public class MainActivity extends AppCompatActivity{
         }
     }
 
+    private boolean hasPermissions(String... permissions) {
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && permissions != null){
+            for (String permission : permissions) {
+                if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                    if(permission == Manifest.permission.RECORD_AUDIO){
+                        microphonePermissionGranted = false;
+                    }
+                    return false;
+                }else{
+                    if(permission == Manifest.permission.RECORD_AUDIO){
+                        microphonePermissionGranted = true;
+                    }
+                }
+            }
+        }
+        microphonePermissionGranted = true;
+        return true;
+    }
+
     private void checkRecordAudioPermission(){ //check if storage permission is set
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
-            if(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED){
-              /*  try {
-                    createImageFileName();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }*/
-            }else{
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED){
                 if(shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)){
                     Toast.makeText(this, "Sprachsteuerung benötigt Zugriff auf Mikrofon", Toast.LENGTH_SHORT).show();
                 }
                 requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQUEST_RECORD_AUDIO_PERMISSION_RESULT);
+            }else{
+                microphonePermissionGranted = true;
             }
+        }else{
+            microphonePermissionGranted = true;
         }
     }
 
-
     private void checkBodySensorPermission() {
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
-            if(ContextCompat.checkSelfPermission(this, Manifest.permission.BODY_SENSORS) == PackageManager.PERMISSION_GRANTED){
-              /*  try {
-                    createImageFileName();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }*/
-            }else{
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.BODY_SENSORS) != PackageManager.PERMISSION_GRANTED){
                 if(shouldShowRequestPermissionRationale(Manifest.permission.BODY_SENSORS)){
                     Toast.makeText(this, "HRM Auslöser benötigt Zugriff auf Body Sensors", Toast.LENGTH_SHORT).show();
                 }
@@ -841,13 +1030,13 @@ public class MainActivity extends AppCompatActivity{
         }, delay);
     }
 
-    public void takePhoto(){ //use this function to take a photo
-        checkWriteStoragePermission();
-        if(cAutoFocusSupported) {
-            lockFocus(delay);
-        }else{ //camera doesn't support autofocus
-            Toast.makeText(getApplicationContext(), "Autofokus wird nicht unterstützt", Toast.LENGTH_SHORT).show();
-        }
+    private void takePhoto(){ //use this function to take a photo
+       checkWriteStoragePermission();
+       if (cAutoFocusSupported) {
+           lockFocus(delay);
+       } else { //camera doesn't support autofocus
+           Toast.makeText(getApplicationContext(), "Autofokus wird nicht unterstützt", Toast.LENGTH_SHORT).show();
+       }
     }
 
     @Override
@@ -875,122 +1064,6 @@ public class MainActivity extends AppCompatActivity{
     protected void onSaveInstanceState(Bundle bundle) {
         super.onSaveInstanceState(bundle);
         bundle.putString("cId", cId);
-    }
-
-    // Speech Recognizer
-
-    public class SpeechRecognizerManager {
-
-        private Context mContext;
-
-        public SpeechRecognizerManager(Context context) {
-            this.mContext = context;
-
-            initPockerSphinx();
-        }
-
-        private void initPockerSphinx() {
-
-            new AsyncTask<Void, Void, Exception>() {
-                @Override
-                protected Exception doInBackground(Void... params) {
-                    try {
-                        Assets assets = new Assets(mContext);
-
-                        //Performs the synchronization of assets in the application and external storage
-                        File assetDir = assets.syncAssets();
-
-                        //Creates a new speech recognizer builder with default configuration
-                        SpeechRecognizerSetup speechRecognizerSetup = SpeechRecognizerSetup.defaultSetup();
-
-                        speechRecognizerSetup.setAcousticModel(new File(assetDir, "en-us-ptm"));
-                        speechRecognizerSetup.setDictionary(new File(assetDir, "cmudict-en-us.dict"));
-
-                        // To disable logging of raw audio comment out this call (takes a lot of space on the device)
-                        //    speechRecognizerSetup.setRawLogDir(assetDir)
-
-                        // Threshold to tune for keyphrase to balance between false alarms and misses
-                        speechRecognizerSetup.setKeywordThreshold(1e-45f);
-
-                        // Use context-independent phonetic search, context-dependent is too slow for mobile
-                        speechRecognizerSetup.setBoolean("-allphone_ci", true);
-
-                        //Creates a new SpeechRecognizer object based on previous set up.
-                        mPocketSphinxRecognizer = speechRecognizerSetup.getRecognizer();
-
-                        // Add Listener
-                        mPocketSphinxRecognizer.addListener(new PocketSphinxRecognitionListener());
-
-                        // Create keyword-activation search.
-                        mPocketSphinxRecognizer.addKeyphraseSearch(KWS_SEARCH, KEYPHRASE);
-
-
-                    } catch (IOException e) {
-                        return e;
-                    }
-                    return null;
-                }
-
-                @Override
-                protected void onPostExecute(Exception result) {
-                    if (result != null) {
-                        Toast.makeText(mContext, "Failed to init pocketSphinxRecognizer ", Toast.LENGTH_SHORT).show();
-                    } else {
-                        switchSearch(KWS_SEARCH);
-                    }
-                }
-            }.execute();
-
-        }
-
-        private void switchSearch(String searchName) {
-            mPocketSphinxRecognizer.stop();
-
-            if (searchName.equals(KWS_SEARCH))
-                mPocketSphinxRecognizer.startListening(searchName);
-
-        }
-
-        protected class PocketSphinxRecognitionListener implements edu.cmu.pocketsphinx.RecognitionListener {
-
-            @Override
-            public void onBeginningOfSpeech() {
-            }
-
-            /**
-             * In partial result we get quick updates about current hypothesis. In
-             * keyword spotting mode we can react here, in other modes we need to wait
-             * for final result in onResult.
-             */
-            @Override
-            public void onPartialResult(Hypothesis hypothesis) {
-                if (hypothesis == null)
-                    return;
-
-
-                String text = hypothesis.getHypstr();
-                if (text.equals(KEYPHRASE) && speechTriggerActivated) {
-                    Toast.makeText(mContext, "You said:" + text, Toast.LENGTH_SHORT).show();
-                    takePhoto();
-                    switchSearch(KWS_SEARCH);
-                }
-            }
-
-            @Override
-            public void onResult(Hypothesis hypothesis) {
-            }
-
-            @Override
-            public void onEndOfSpeech() {
-            }
-
-            public void onError(Exception error) {
-            }
-
-            @Override
-            public void onTimeout() {
-            }
-        }
     }
 
 }
